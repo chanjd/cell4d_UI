@@ -11,3 +11,34 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+.cusbut {
+  background-color: #424742;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 10px;
+  margin: 2px 1px;
+  cursor: pointer;
+}
+
+.one {
+  grid-column: 1 / 3;
+  grid-row: 1 / 4;
+  padding: 20px;
+  outline-style: double;
+  outline-color: aqua;
+}
+.two { 
+  grid-column: 2 / 4;
+  grid-row: 1 / 6;
+  outline-style: ridge;
+  outline-color: rgb(187, 189, 69);
+}
+.three {
+  grid-column: 1;
+  grid-row: 2 / 5;
+}

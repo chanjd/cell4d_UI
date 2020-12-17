@@ -1,22 +1,30 @@
+import * as yup from 'yup'; // for everything
+import { schema } from './schema';
+import "./optional"; // custom "optional" function for yup validation
 declare var require: any
 const { strict, match } = require("assert");
 const { ENGINE_METHOD_DSA } = require("constants");
 const fs = require("fs")
-const xmlParser = require("xml2json")
+// import xmlParser from "fast-xml-parser";
+const xmlParser = require('xml-js');
 
+// const jsonParser = require("fast-xml-parser").j2xParser;
 
-export let get_env = function (model_obj: any): any {
+interface validationError {
+	path: string,
+	message: string
+}
+
+function isPositiveInt(str: any) {
+	return !isNaN(str) && Number.isInteger(parseFloat(str)) && str >= 0;
+}
+
+let get_env = function (model_obj: any): any {
 	let env_model = model_obj?.["annotation"]?.["cell4d:environmentVariables"];
 	if (!env_model) {
 		return false;
 	}
 	return (env_model);
-}
-
-
-
-function isPositiveInt(str: any) {
-	return !isNaN(str) && Number.isInteger(parseFloat(str)) && str >= 0;
 }
 
 // case insensitive string matching to target list
@@ -32,7 +40,7 @@ let is_in_range = function (input: number, valid_range: Array<number>): boolean 
 	if (valid_range.length != 2) {
 		console.error(`Invalid range ${valid_range} used in is_in_range() call`)
 	}
-	if(valid_range[0] > valid_range[1]) {
+	if (valid_range[0] > valid_range[1]) {
 		valid_range = [valid_range[1], valid_range[0]];
 	}
 	if (!isNaN(input) && input >= valid_range[0] && input <= valid_range[1]) {
@@ -43,233 +51,100 @@ let is_in_range = function (input: number, valid_range: Array<number>): boolean 
 }
 
 // validate env variables
-let validate_env = function (env_model: any): { pass: boolean; errors: Array<string>; } {
-	let output = { pass: true, errors: Array<string>() }
-	let possible_errors = ["missing_var", "invalid_var"];
-	let env_var_array = ["cell4d:X_DIM", "cell4d:Y_DIM", "cell4d:Z_DIM",
-		"cell4d:GEOMETRY", "cell4d:TIMESCALE", "cell4d:SPACESCALE",
-		"cell4d:INACCESSIBLE_SPACE_PERCENT", "cell4d:MAX_CYCLES"];
+let validate_env = function (env_model: any, schema: any): { pass: boolean, errors: Array<string>, longErrors: Array<validationError> } {
+	let output = { pass: true, errors: Array<string>(), longErrors: Array<validationError>() }
 
-	for (const env_element of env_var_array) {
-		if (!env_model[env_element]) {
-			console.log(`environmental variables must contain '${env_element}'`);
-			output.errors.push(possible_errors[0]);
-		}
-
-		if (env_element.match("DIM") && env_model[env_element]) {
-			if (!isPositiveInt(env_model[env_element].$t)) {
-				console.log("dimensions must be positive integer values");
-				output.errors.push(possible_errors[1]);
-			}
-		}
+	let validity = schema.isValidSync(env_model);
+	let validate_errors: Array<string> = [];
+	let long_errors: Array<validationError> = [];
+	try {
+		schema.validateSync(env_model, { abortEarly: false });
+	} catch (error) {
+		long_errors = error.inner.map((error_element: any) => {
+			return ({
+				path: error_element.path,
+				message: error_element.message
+			})
+		})
+		validate_errors = error.errors;
 	}
 
-	if (!env_model["cell4d:GEOMETRY"]) {
-	} else if (!is_correct_string(env_model["cell4d:GEOMETRY"].$t, ["cube"])) {
-		console.log(`geometry parameter '${env_model["cell4d:GEOMETRY"].$t}' should be 'cube'`);
-		output.errors.push(possible_errors[1]);
-	}
-	if (!env_model["cell4d:TIMESCALE"]) {
-	} else if (!is_in_range(env_model["cell4d:TIMESCALE"].$t, [0,1])) {
-		console.log("timescale parameter should not be greater than 1");
-		output.errors.push(possible_errors[1]);
-	}
-	if (!env_model["cell4d:SPACESCALE"]) {
-	} else if (!is_in_range(env_model["cell4d:SPACESCALE"].$t, [0,1])) {
-		console.log("spacescale parameter should not be greater than 1");
-		output.errors.push(possible_errors[1]);
-	}
-	if (!env_model["cell4d:INACCESSIBLE_SPACE_PERCENT"]) {
-	} else if (!is_in_range(env_model["cell4d:INACCESSIBLE_SPACE_PERCENT"].$t, [0,100])) {
-		console.log("INACCESSIBLE_SPACE_PERCENT parameter should be between 0 and 100");
-		output.errors.push(possible_errors[1]);
-	}
-	if (!env_model["cell4d:MAX_CYCLES"]) {
-	} else if (!isPositiveInt(env_model["cell4d:MAX_CYCLES"].$t)) {
-		console.log("Simulation cycles must be a positive integer");
-		output.errors.push(possible_errors[1]);
-	}
-
-
-	if (output.errors.length !== 0) output.pass = false;
+	output.pass = validity;
+	output.errors = validate_errors;
+	output.longErrors = long_errors;
 	return (output)
 }
 
-let validate_comparts = function (compart_model: any): { pass: boolean; errors: Array<string>; } {
-	let output = { pass: true, errors: Array<string>() }
-	let possible_errors = ["missing_var", "invalid_var"];
+let validate_comparts = function (compart_model: any, schema: any): { pass: boolean, errors: Array<string>, longErrors: Array<validationError> } {
+	let output = { pass: true, errors: Array<string>(), longErrors: Array<validationError>() }
 
 	if (!Array.isArray(compart_model)) compart_model = [compart_model];
-	Object.values(compart_model).forEach(function (compart: any) {
-		if (!compart.id) {
-			console.log("compartment must have id attribute");
-			output.errors.push(possible_errors[0]);
-		}
-		if (compart.id === "default") return;
-		if (!compart["annotation"]) {
-			console.log("compartment " + compart.id + " is missing annotation tags")
-			output.errors.push(possible_errors[0]);
-			return;
-		}
-		// optional compart properties field for membranes
-		if (compart["annotation"]["cell4d:compartmentProperties"]) {
-			let compart_props = compart["annotation"]["cell4d:compartmentProperties"];
-			if (compart_props.type === "membrane") {
-				if (!(compart_props.axis && compart_props.face && compart_props.membraneEmissionRate && compart_props.absorptionRate)) {
-					console.log("membrane attributes 'axis' 'face' membraneEmissionRate' 'absorptionRate' missing")
-					output.errors.push(possible_errors[0]);
-				}
-				let allowable_axis = ["x", "y", "z"];
-				let allowable_faces = ["front", "back"];
-				if(!is_correct_string(compart_props.axis, allowable_axis)) {
-					console.log("membrane axis must be 'x' 'y' or 'z'")
-					output.errors.push(possible_errors[1]);
-				}
-				if(!is_correct_string(compart_props.face, allowable_faces)) {
-					console.log("membrane face must be 'front' (plane close to 0) or 'back' (plane away from 0)")
-					output.errors.push(possible_errors[1]);
-				}
-				if (!is_in_range(compart_props.membraneEmissionRate, [0,1])) {
-					console.log("membraneEmissionRate between 0 and 1")
-					output.errors.push(possible_errors[1]);
-				}
-				if (!is_in_range(compart_props.absorptionRate, [0,1])) {
-					console.log("absorptionRate between 0 and 1")
-					output.errors.push(possible_errors[1]);
-				}
-			} else {
-				console.log("compartment type must be membrane")
-				output.errors.push(possible_errors[1]);
-			}
-		}
-		if (!compart["annotation"]["cell4d:latticePointDefinition"]) {
-			console.log("compartment must have lattice point definition in annotation tag");
-			output.errors.push(possible_errors[0]);
-			return;
-		}
+	let validate_errors: Array<string> = [];
+	let long_errors: Array<validationError> = [];
 
-		// ensure all lattice point def's are integers
-		let lpd = compart["annotation"]["cell4d:latticePointDefinition"];
+	// grab all errors thrown by validateSync
+	try {
+		Object.values(compart_model).forEach(function (compart: any) {
+			schema.validateSync(compart, { abortEarly: false });
+		});
+	} catch (error) {
+		long_errors = error.inner.map((error_element: any) => {
+			return ({
+				path: error_element.path,
+				message: error_element.message
+			})
+		})
+		let error_out = error.errors;
+		validate_errors = [...validate_errors, ...error_out];
+	}
 
-		if (!Array.isArray(lpd)) {
-			lpd = [lpd];
-		}
-		for (var i = 0; i < lpd.length; i++) {
-			if (lpd[i].type !== "solid") {
-				console.log("compartment " + compart.id + " has invalid " + lpd[i].type + " compartment type")
-				output.errors.push(possible_errors[1]);
-			}
-			let lpd_dim = ["x1", "x2", "y1", "y2", "z1", "z2"];
-			for (const dim_attr of lpd_dim) {
-				// console.log(lpd[i][dim_attr])
-				if (!lpd[i][dim_attr]) {
-					output.errors.push(possible_errors[0]);
-					continue;
-				}
-				if (!isPositiveInt(lpd[i][dim_attr])) {
-					console.log("dimension attributes must be positive integers")
-					output.errors.push(possible_errors[1]);
-				}
-			}
-		}
-	})
+	if (validate_errors.length !== 0) output.pass = false;
+	output.errors = validate_errors;
+	output.longErrors = long_errors;
 
-	if (output.errors.length !== 0) output.pass = false;
 	return (output);
 }
 
-let validate_annot_species = function (annot_model: any, compart_list: Array<string>): { pass: boolean; errors: Array<string>; } {
-	let output = { pass: true, errors: Array<string>() }
-	let possible_errors = ["missing_var", "invalid_var"];
+let validate_annot_species = function (annot_model: any, compart_list: Array<string>, schema: any): { pass: boolean, errors: Array<string>, longErrors: Array<validationError> } {
+	let output = { pass: true, errors: Array<string>(), longErrors: Array<validationError>() }
 	if (!Array.isArray(annot_model)) annot_model = [annot_model];
-	Object.values(annot_model).forEach(function (annotspecies: any) {
-		if (!annotspecies.id) {
-			console.log("annotation species must have id attribute");
-			output.errors.push(possible_errors[0]);
-		}
-		if(!is_correct_string(annotspecies.speciesMoleculeType, ["SIMPLE_MOLECULE", "PROTEIN"])) {
-			console.log("annotation species type must be either SIMPLE_MOLECULE or PROTEIN");
-			output.errors.push(possible_errors[0]);
-		}
+	let validate_errors: Array<string> = [];
+	let long_errors: Array<validationError> = [];
 
-		// check validcompartments
-		let has_comparts = true;
-		if (annotspecies?.["cell4d:listOfValidCompartments"]?.["cell4d:compartment"] === undefined) {
-			console.log("annotation species must have at least 1 valid compartment");
-			output.errors.push(possible_errors[0]);
-			has_comparts = false;
-		}
-		if (has_comparts) {
-			let comparts = annotspecies["cell4d:listOfValidCompartments"]["cell4d:compartment"];
-			// deal with 1 or more comparts (array of obj or obj)
-			if (!Array.isArray(comparts)) comparts = [comparts];
-			let valid_comparts: Array<string> = comparts.map((compart: { id: string; }) => { return compart.id })
-			if (!valid_comparts.every(compart => compart_list.includes(compart))) {
-				console.log("a 'validCompartment' of " + annotspecies.id + " is not in list of compartments.");
-				output.errors.push(possible_errors[1]);
-			}
-		}
-		if (annotspecies["cell4d:listOfBindingSites"]) {
-			if (annotspecies.speciesMoleculeType === "SIMPLE_MOLECULE") {
-				console.log("simple molecules cannot have binding or modification sites");
-				output.errors.push(possible_errors[1]);
-			} else if (!annotspecies["cell4d:listOfBindingSites"]["cell4d:bindingSite"]) {
-				console.log("annotation species binding sites element should not be empty, if exists");
-				output.errors.push(possible_errors[0]);
-			}
-			if (annotspecies.speciesMoleculeType === "PROTEIN") {
-				let binding_sites = annotspecies["cell4d:listOfBindingSites"]["cell4d:bindingSite"];
-				if (!Array.isArray(binding_sites)) binding_sites = [binding_sites];
-				Object.values(binding_sites).forEach(function (site: any) {
-					if (!site.id) {
-						console.log("annotation species binding site must have id attribute");
-						output.errors.push(possible_errors[0]);
-					}
-					if (site.states) {
-						let states: Array<string> = site.states;
-						if (!Array.isArray(states)) states = [states];
-						Object.values(states).forEach(function (state: string) {
-							if (!state) {
-								console.log("annotation species binding states must have value attribute");
-								output.errors.push(possible_errors[0]);
-							}
-						})
-					}
-				})
-			}
-		}
+	// grab all errors thrown by validateSync
+	try {
+		Object.values(annot_model).forEach(function (annot: any) {
+			schema.validateSync(annot, { abortEarly: false, context: compart_list });
 
-		if (!annotspecies["cell4d:diffusionConstant"]) {
-			console.log("annotation species must have diffusion constant attribute");
-			output.errors.push(possible_errors[0]);
-		} else if (!is_in_range(annotspecies["cell4d:diffusionConstant"].value, [0,1])) {
-			console.log("diffusion constant should be between 0 and 1");
-			output.errors.push(possible_errors[1]);
-		}
-		if (!annotspecies["cell4d:displayProperties"]) {
-			console.log("annotation species must have displayProperties attribute");
-			output.errors.push(possible_errors[0]);
-		} else if (annotspecies["cell4d:displayProperties"]) {
-			let display_colors = ["redValue", "greenValue", "blueValue"];
-			for (const color of display_colors) {
-				if (!annotspecies["cell4d:displayProperties"][color]) {
-					output.errors.push(possible_errors[0]);
-				} else if (!is_in_range(annotspecies["cell4d:displayProperties"][color], [0,255])) {
-					console.log("color properties must be between 0 and 255")
-					output.errors.push(possible_errors[1]);
+			// workaround, disallow bulk from having binding sites
+			if (annot?._attributes?.speciesMoleculeType === "SIMPLE_MOLECULE") {
+				if (annot?.["cell4d:listOfBindingSites"]) {
+					validate_errors = [...validate_errors, "invalid_var"];
 				}
 			}
-		}
-	})
+		});
+	} catch (error) {
+		long_errors = error.inner.map((error_element: any) => {
+			return ({
+				path: error_element.path,
+				message: error_element.message
+			})
+		})
+		let error_out = error.errors;
+		validate_errors = [...validate_errors, ...error_out];
+	}
 
-	if (output.errors.length !== 0) output.pass = false;
+	if (validate_errors.length !== 0) output.pass = false;
+	output.errors = validate_errors;
+	output.longErrors = long_errors;
+
 	return (output);
 }
+
 
 let validate_species = function (species_model: any, compart_list: Array<string>, annotspecies_bindings_list: any): { pass: boolean; errors: Array<string>; } {
 	let output = { pass: true, errors: Array<string>() }
 	let possible_errors = ["missing_var", "invalid_var", "no_match"];
-	if (!Array.isArray(species_model)) species_model = [species_model];
 	Object.values(species_model).forEach(function (species: any) {
 		if (!species.id) {
 			console.log("species must have id attribute");
@@ -288,8 +163,6 @@ let validate_species = function (species_model: any, compart_list: Array<string>
 			output.errors.push(possible_errors[0]);
 		} else {
 			compartments_list = species["annotation"]["cell4d:listOfValidCompartments"]["cell4d:compartment"];
-			// turn single entries into array length 1 to loop
-			if (!Array.isArray(compartments_list)) compartments_list = [compartments_list];
 			for (let i = 0; i < compartments_list.length; i++) {
 				if (!compartments_list[i].id) {
 					console.log("initial compartment id must be specified");
@@ -315,7 +188,6 @@ let validate_species = function (species_model: any, compart_list: Array<string>
 			for (let species_type of species_types) {
 				let species_sites = species_type["cell4d:bindingSite"];
 				if (!species_sites) species_sites = [];
-				if (!Array.isArray(species_sites)) species_sites = [species_sites];
 				// there is a difference between bind sites and mod sites. only 1 of state and binding should be filled
 				for (let species_site of species_sites) {
 					// state XOR binding filled
@@ -324,7 +196,7 @@ let validate_species = function (species_model: any, compart_list: Array<string>
 						output.errors.push(possible_errors[1]);
 					}
 					// if binding filled, must be target strings
-					if (!(is_correct_string(species_site.binding, ["unbind", "unbound","bind","bound"])) && species_site.binding !== "") {
+					if (!(is_correct_string(species_site.binding, ["unbind", "unbound", "bind", "bound"])) && species_site.binding !== "") {
 						console.log(`Species ${species_type.id}: invalid binding parameter ${species_site.binding}`);
 						output.errors.push(possible_errors[1]);
 					}
@@ -340,7 +212,7 @@ let validate_species = function (species_model: any, compart_list: Array<string>
 		// diffusionConstant and displayProperties are optional here, validate if exists
 		if (species["annotation"]["cell4d:diffusionConstant"]) {
 			let difc = species["annotation"]["cell4d:diffusionConstant"].value;
-			if(!is_in_range(difc, [0,1])) {
+			if (!is_in_range(difc, [0, 1])) {
 				console.log("diffusion constant cannot be negative");
 				output.errors.push(possible_errors[1]);
 			}
@@ -348,13 +220,13 @@ let validate_species = function (species_model: any, compart_list: Array<string>
 		if (species["annotation"]["cell4d:displayProperties"]) {
 			let display_colors = ["redValue", "greenValue", "blueValue"];
 			for (const color of display_colors) {
-				if (!is_in_range(species["annotation"]["cell4d:displayProperties"][color], [0,255])) {
+				if (!is_in_range(species["annotation"]["cell4d:displayProperties"][color], [0, 255])) {
 					console.log("color properties must be between 0 and 255")
 					output.errors.push(possible_errors[1]);
 				}
 			}
 		}
-		
+
 	})
 
 	if (output.errors.length !== 0) output.pass = false;
@@ -369,7 +241,6 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 		errors: Array<string>()
 	}
 	let possible_errors = ["missing_var", "invalid_var", "no_match"];
-	if (!Array.isArray(reactions_model)) reactions_model = [reactions_model];
 	Object.values(reactions_model).forEach(function (reaction: any) {
 		let reaction_id = reaction.id;
 		let annotation = reaction["annotation"];
@@ -390,10 +261,9 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 					output.errors.push(possible_errors[0]);
 					return;
 				}
-				if (!Array.isArray(reaction_comparts)) reaction_comparts = [reaction_comparts];
-				let reaction_comparts_list = reaction_comparts.map((compart: { id: any; }) => { return compart.id })
+				let reaction_comparts_list: Array<string> = reaction_comparts.map((compart: { id: string; }) => { return compart.id })
 				for (let react_compart of reaction_comparts_list) {
-					if (!compart_list.every((compart: string) => compart_list.includes(react_compart))) {
+					if (!compart_list.includes(react_compart)) {
 						console.log(`an allowed compartment of reaction ${reaction_id} does not exist.`)
 						output.errors.push(possible_errors[1]);
 					}
@@ -420,7 +290,7 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 				output.errors.push(possible_errors[0]);
 				return;
 			}
-			let species_types = reactant["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"];
+			let species_types: Array<any> = reactant["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"];
 			if (!Array.isArray(species_types)) species_types = [species_types];
 			for (let species_type of species_types) {
 				if (!species_type.id) {
@@ -429,7 +299,6 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 				}
 				let species_sites = species_type["cell4d:bindingSite"];
 				if (!species_sites) species_sites = [];
-				if (!Array.isArray(species_sites)) species_sites = [species_sites];
 				// there is a difference between bind sites and mod sites. only 1 of state and binding should be filled
 				let invalid_found = false;
 				for (let species_site of species_sites) {
@@ -439,7 +308,7 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 						output.errors.push(possible_errors[1]);
 						invalid_found = true;
 					}
-					if (!(is_correct_string(species_site.binding, ["unbind", "unbound","bind","bound"])) && species_site.binding !== "") {
+					if (!(is_correct_string(species_site.binding, ["unbind", "unbound", "bind", "bound"])) && species_site.binding !== "") {
 						console.log(`Species ${species_type.id}: invalid binding parameter ${species_site.binding}`);
 						output.errors.push(possible_errors[1]);
 						invalid_found = true;
@@ -459,7 +328,7 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 			if (!product["cell4d:listOfSpeciesTypes"]) {
 				console.log("list of products in reaction " + reaction_id + " missing species list.")
 			}
-			let species_types = product["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"];
+			let species_types: Array<any> = product["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"];
 			if (!Array.isArray(species_types)) species_types = [species_types];
 			for (let species_type of species_types) {
 				if (!species_type.id) {
@@ -468,7 +337,6 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 				}
 				let species_sites = species_type["cell4d:bindingSite"];
 				if (!species_sites) species_sites = [];
-				if (!Array.isArray(species_sites)) species_sites = [species_sites];
 				// there is a difference between bind sites and mod sites. only 1 of state and binding should be filled
 				let invalid_found = false;
 				for (let species_site of species_sites) {
@@ -478,7 +346,7 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 						output.errors.push(possible_errors[1]);
 						invalid_found = true;
 					}
-					if (!(is_correct_string(species_site.binding, ["unbind", "unbound","bind","bound"])) && species_site.binding !== "") {
+					if (!(is_correct_string(species_site.binding, ["unbind", "unbound", "bind", "bound"])) && species_site.binding !== "") {
 						console.log(`Species ${species_type.id}: invalid binding parameter ${species_site.binding}`);
 						output.errors.push(possible_errors[1]);
 						invalid_found = true;
@@ -506,23 +374,26 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 		}
 
 		// deal with modifier field
-		let modifier = list_modifiers["annotation"]["cell4d:speciesReference"];
-		let is_enzymatic = false;
-		if (Array.isArray(modifier)) {
+		if (list_modifiers["annotation"]["cell4d:speciesReference"].length > 1) {
 			console.log("There should only be one 'modifier' in reaction " + reaction_id)
 			output.errors.push(possible_errors[1]);
 		}
-		let modifier_species = modifier["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"].id;
-		if (modifier_species != "empty") {
-			is_enzymatic = true;
-			if (metabolite_list.includes(modifier_species)) {
-				console.log(`modifier species ${modifier_species} cannot be a bulk molecule.`)
-				output.errors.push(possible_errors[1]);
-			} else if (!annotspecies_bindings_list.find((species: { id: any; }) => species.id === modifier_species)) {
-				console.log(`modifier species ${modifier_species} does not exist.`)
-				output.errors.push(possible_errors[2]);
+		let modifier = list_modifiers["annotation"]["cell4d:speciesReference"][0];
+		let is_enzymatic = false;
+		if (modifier["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"].length === 1) {
+			let modifier_species = modifier["cell4d:listOfSpeciesTypes"]["cell4d:speciesType"][0].id;
+			if (modifier_species != "empty") {
+				is_enzymatic = true;
+				if (metabolite_list.includes(modifier_species)) {
+					console.log(`modifier species ${modifier_species} cannot be a bulk molecule.`)
+					output.errors.push(possible_errors[1]);
+				} else if (!annotspecies_bindings_list.find((species: { id: any; }) => species.id === modifier_species)) {
+					console.log(`modifier species ${modifier_species} does not exist.`)
+					output.errors.push(possible_errors[2]);
+				}
 			}
 		}
+
 
 		// kinetics
 		let parameters = reaction?.["kineticLaw"]?.["listOfParameters"]?.["parameter"];
@@ -533,7 +404,6 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 		let list_of_params_normal = ["Kforward", "Kreverse", "radius"];
 		let list_of_params_enzmatic = ["Ka", "Kp", "Keq", "Vm"];
 
-		if (!Array.isArray(parameters)) parameters = [parameters];
 		let param_names: Array<string> = parameters.map((param: { name: string; }) => param.name)
 		if (is_enzymatic) {
 			// check both ways
@@ -554,7 +424,7 @@ let validate_reactions = function (reactions_model: any, compart_list: Array<str
 			}
 			if (!param.value) {
 				output.errors.push(possible_errors[0]);
-			} else if (!is_in_range(param.value, [0,Infinity])) {
+			} else if (!is_in_range(param.value, [0, Infinity])) {
 				console.log(`Reaction ${reaction_id} parameter values must be a positive value.`);
 				output.errors.push(possible_errors[1]);
 			}
@@ -770,7 +640,7 @@ let validate_events = function (events_model: any, compart_list: Array<string>, 
 				output.errors.push(possible_errors[0]);
 				return;
 			}
-			if (!is_correct_string(event["time_trigger"].repeat, ["true","false"])) {
+			if (!is_correct_string(event["time_trigger"].repeat, ["true", "false"])) {
 				console.log(`Event ${event.name} 'repeat' attribute must be true or false`);
 				output.errors.push(possible_errors[1]);
 			}
@@ -794,12 +664,12 @@ let validate_events = function (events_model: any, compart_list: Array<string>, 
 				output.errors.push(possible_errors[0]);
 				return;
 			}
-			if (!is_correct_string(event["state_trigger"].repeat, ["true","false"])) {
+			if (!is_correct_string(event["state_trigger"].repeat, ["true", "false"])) {
 				console.log(`Event ${event.name} 'repeat' attribute must be 'true' or 'false'`);
 				output.errors.push(possible_errors[1]);
 			}
-			if (!is_correct_string(event["state_trigger"].condition, ["less_than","greater_than"])) {
-					console.log(`Event ${event.name} 'condition' attribute must be 'less_than' or 'greater_than'`);
+			if (!is_correct_string(event["state_trigger"].condition, ["less_than", "greater_than"])) {
+				console.log(`Event ${event.name} 'condition' attribute must be 'less_than' or 'greater_than'`);
 				output.errors.push(possible_errors[1]);
 			}
 			if (!species_list.includes(event["state_trigger"].id)) {
@@ -896,6 +766,15 @@ let validate_model = function (xml_obj: any): any {
 			species: Array<string>(),
 			reactions: Array<string>(),
 			events: Array<string>(),
+		},
+		longErrors: {
+			general: Array<string>(),
+			env_var: Array<string>(),
+			annot_species: Array<string>(),
+			compartment: Array<string>(),
+			species: Array<string>(),
+			reactions: Array<string>(),
+			events: Array<string>(),
 		}
 	}
 
@@ -953,24 +832,24 @@ let validate_model = function (xml_obj: any): any {
 		return (output);
 	}
 
+	const schemas = schema;
 
 	// validate env variables
 	let env_model = xml_model["annotation"]["cell4d:environmentVariables"];
-	let check_env = validate_env(env_model);
-	if (!check_env.pass) {
-		output.errors.env_var = check_env.errors.slice();
-		output.pass = false;
-	}
+	let check_env = validate_env(env_model, schemas.envVar);
+	// if (!check_env.pass) {
+	// 	output.errors.env_var = check_env.errors.slice();
+	// 	output.pass = false;
+	// }
 
 	// validate compartments
 	let compart_model = xml_model["listOfCompartments"]["compartment"];
-	if (!Array.isArray(compart_model)) compart_model = [compart_model];
 	let compart_list: Array<string> = compart_model.map((compart: { id: any; }) => { return compart.id })
-	let check_compart = validate_comparts(compart_model);
-	if (!check_compart.pass) {
-		output.errors.compartment = check_compart.errors.slice();
-		output.pass = false;
-	}
+	let check_compart = validate_comparts(compart_model, schemas.compart);
+	// if (!check_compart.pass) {
+	// 	output.errors.compartment = check_compart.errors.slice();
+	// 	output.pass = false;
+	// }
 
 	// validate annotation species
 	let metabolite_list: Array<string> = [];
@@ -978,6 +857,7 @@ let validate_model = function (xml_obj: any): any {
 	if (annot_species) {
 		let annotspecies_model = xml_model["annotation"]["cell4d:listOfAnnotationSpeciesTypes"]["cell4d:speciesType"];
 		if (!Array.isArray(annotspecies_model)) annotspecies_model = [annotspecies_model];
+
 		let metabolites = annotspecies_model.filter((species: { speciesMoleculeType: string; id: any; }) => {
 			if (species.speciesMoleculeType === "SIMPLE_MOLECULE") {
 				return (species.id)
@@ -992,8 +872,6 @@ let validate_model = function (xml_obj: any): any {
 				return { id: species_id, sites: [] }
 			}
 			let sites = annotspecies["cell4d:listOfBindingSites"]["cell4d:bindingSite"]
-			// deal with 1 or more binding sites (array of obj or obj)
-			if (!Array.isArray(sites)) sites = [sites];
 			Object.values(sites).forEach(function (site: any) {
 				if (site["cell4d:listOfPossibleStates"]) {
 					if (site["cell4d:listOfPossibleStates"]["cell4d:state"]) {
@@ -1005,18 +883,17 @@ let validate_model = function (xml_obj: any): any {
 			return { id: species_id, sites: sites }
 		})
 
-		let check_annotspecies = validate_annot_species(annotspecies_model, compart_list);
-		if (!check_annotspecies.pass) {
-			output.errors.annot_species = check_annotspecies.errors.slice();
-			output.pass = false;
-		}
+		let check_annotspecies = validate_annot_species(annotspecies_model, compart_list, schema.annotSpecies);
+		// if (!check_annotspecies.pass) {
+		// 	output.errors.annot_species = check_annotspecies.errors.slice();
+		// 	output.pass = false;
+		// }
 	}
 
 	// validate list of species
 	let species_list: Array<string> = [];
 	if (species) {
 		let species_model = xml_model["listOfSpecies"]["species"];
-		if (!Array.isArray(species_model)) species_model = [species_model];
 		species_list = species_model.map((species: { id: any; }) => { return species.id });
 		let check_species = validate_species(species_model, compart_list, annotspecies_bindings_list);
 		if (!check_species.pass) {
@@ -1029,7 +906,6 @@ let validate_model = function (xml_obj: any): any {
 	let check_reactions;
 	if (reactions) {
 		let reactions_model = xml_model["listOfReactions"]["reaction"];
-		if (!Array.isArray(reactions_model)) reactions_model = [reactions_model];
 		check_reactions = validate_reactions(reactions_model, compart_list, annotspecies_bindings_list, metabolite_list);
 		if (!check_reactions.pass) {
 			output.errors.reactions = check_reactions.errors.slice();
@@ -1041,7 +917,6 @@ let validate_model = function (xml_obj: any): any {
 	let check_events;
 	if (events) {
 		let events_model = xml_model["annotation"]["cell4d:events"]["event"];
-		if (!Array.isArray(events_model)) events_model = [events_model];
 		check_events = validate_events(events_model, compart_list, species_list);
 		if (!check_events.pass) {
 			output.errors.events = check_events.errors.slice();
@@ -1055,23 +930,214 @@ let validate_model = function (xml_obj: any): any {
 	return (output);
 };
 
-export let validate_xml = function (xml_file: string): any {
+
+
+export let validate_xml = function (xml_file: string, raw_string = false): any {
+	let validation_result = {
+		pass: true,
+		errors: {
+			general: Array<string>(),
+			env_var: Array<string>(),
+			annot_species: Array<string>(),
+			compartment: Array<string>(),
+			species: Array<string>(),
+			reactions: Array<string>(),
+			events: Array<string>(),
+		},
+		longErrors: {
+			general: Array<validationError>(),
+			env_var: Array<validationError>(),
+			annot_species: Array<validationError>(),
+			compartment: Array<validationError>(),
+			species: Array<validationError>(),
+			reactions: Array<validationError>(),
+			events: Array<validationError>(),
+		},
+		json: {}
+	}
+
+	// allow raw string as input for this function, or a file path. default is file path
 	var xml_string;
+	if(raw_string) {
+		xml_string = xml_file;
+	} else {
+		try {
+			xml_string = fs.readFileSync(xml_file, "utf-8");
+		} catch (err) {
+			if (err.code === "ENOENT") {
+				console.error(`File ${xml_file} not found.`)
+				return;
+			}
+		}	
+	}
+
+	// list of nodes that should always be arrays when doing the xml -> json conversion
+	let arrayNotation = [
+		'cell4d:speciesType', 'cell4d:latticePointDefinition', 'cell4d:compartment',
+		'cell4d:bindingSite', 'cell4d:state',
+		'event',
+		'compartment', 'cell4d:latticePointDefinition',
+		'species', 'cell4d:speciesType', 'cell4d:bindingSite',
+		'reaction', 'cell4d:speciesReference', 'parameter',
+	];
+	let json_obj;
 	try {
-		xml_string = fs.readFileSync(xml_file, "utf-8");
-	} catch (err) {
-		if (err.code === "ENOENT") {
-			console.error(`File ${xml_file} not found.`)
-			return;
-		}
+		const json_string = xmlParser.xml2json(xml_string, {
+			compact: true,
+			alwaysArray: arrayNotation,
+		});
+		json_obj = JSON.parse(json_string);
+	} catch(err) {
+		validation_result.pass = false;
+		validation_result.errors.general = ["File read failed."];
+		return(validation_result);
+	}
+
+	
+
+
+	// ensure all mandatory groups are there. Environmental variables, compartments
+	let env_var = false;
+	let annot_species = false;
+	let compart = false;
+	let species = false;
+	let reactions = false;
+	let events = false;
+	if (json_obj?.sbml?.model?.["annotation"]?.["cell4d:environmentVariables"]) {
+		env_var = true;
+	}
+	if (json_obj?.sbml?.model?.["listOfCompartments"]?.["compartment"] !== undefined) {
+		compart = true;
+	}
+	if (json_obj?.sbml?.model?.["annotation"]?.["cell4d:listOfAnnotationSpeciesTypes"]?.["cell4d:speciesType"] !== undefined) {
+		annot_species = true;
+	}
+	if (json_obj?.sbml?.model?.["listOfSpecies"]?.["species"] !== undefined) {
+		species = true;
+	}
+	if (json_obj?.sbml?.model?.["listOfReactions"]?.["reaction"] !== undefined) {
+		reactions = true;
+	}
+	if (json_obj?.sbml?.model?.["annotation"]?.["cell4d:events"]?.["event"] !== undefined) {
+		events = true;
+	}
+
+	// dependencies between groups: events and reactions are optional.
+	let possible_general_errors = ["missing_env_var", "missing_annot_species", "missing_compartment", "missing_species"];
+	if (!env_var) {
+		validation_result.errors.general.push(possible_general_errors[0]);
+	}
+	if (species) {
+		if (!annot_species) validation_result.errors.general.push(possible_general_errors[1]);
+	}
+	if (!compart) {
+		validation_result.errors.general.push(possible_general_errors[2]);
+	}
+	if (events || reactions) {
+		if (!species) validation_result.errors.general.push(possible_general_errors[3]);
+	}
+	// if any general errors exist, stop
+	if (validation_result.errors.general.length > 0) {
+		validation_result.pass = false;
+		return (validation_result);
 	}
 
 
-	const xml_object = xmlParser.toJson(xml_string, { reversible: true, object: true });
 
-	let valid = validate_model(xml_object);
-	return (valid);
+
+
+
+
+	let jsonEnv = json_obj?.sbml?.model?.annotation?.["cell4d:environmentVariables"];
+	let jsonComparts = json_obj?.sbml?.model?.listOfCompartments?.compartment;
+	let jsonAnnotSpecies = json_obj?.sbml?.model?.annotation?.["cell4d:listOfAnnotationSpeciesTypes"]?.["cell4d:speciesType"];
+	let validEnv = validate_env(jsonEnv, schema.envVar);
+	validation_result.errors.env_var = validEnv.errors.slice();
+
+	let validComparts = validate_comparts(jsonComparts, schema.compart);
+	validation_result.errors.compartment = validComparts.errors.slice();
+
+	// Early termination if the mandatory sections have errors
+	if (!validComparts.pass || !validEnv.pass) {
+		validation_result.pass = false;
+		return (validation_result)
+	}
+	let compart_list: Array<string> = jsonComparts.map((compart: { _attributes: { id: string; } }) => { return compart._attributes.id })
+
+	let annotSpecies_list: Array<{ id: string, sites: Array<{ id: string, state: Array<string> }> }>;
+	if (jsonAnnotSpecies) {
+		let validAnnotSpecies = validate_annot_species(jsonAnnotSpecies, compart_list, schema.annotSpecies);
+		validation_result.errors.annot_species = validAnnotSpecies.errors.slice();
+
+		// Early 
+		if (!validAnnotSpecies.pass) {
+			validation_result.pass = false;
+			return (validation_result)
+		}
+
+		// dig into the deeply nested binding sites info, simplify structure for validation downstream
+		// {
+		// 	id: string, 
+		// 	sites: Array<{
+		// 		id: string, 
+		// 		state: Array<string>
+		// 	}>
+		// }
+		annotSpecies_list = jsonAnnotSpecies.map((annotSpecies: any) => {
+			let id: string = annotSpecies._attributes.id;
+			let sites: Array<{ id: string, states: Array<string> }>;
+
+			let bindingSites_obj: Array<any> = annotSpecies?.["cell4d:listOfBindingSites"]?.["cell4d:bindingSite"]
+			if (!bindingSites_obj) {
+				sites = [];
+			} else {
+				sites = bindingSites_obj.map((site: any) => {
+					let site_id = site._attributes.id;
+					let states_obj: Array<any> = site?.["cell4d:listOfPossibleStates"]?.["cell4d:state"];
+					let states: Array<string> = [];
+					if (!states_obj) {
+						states = [];
+					} else {
+						states = states_obj.map((state: any) => {
+							return state._attributes.value;
+						});
+					};
+					return ({
+						id: site_id,
+						states: states,
+					})
+				});
+			}
+
+			return ({ id: id, sites: sites });
+		})
+
+	}
+
+
+	const reversed = xmlParser.js2xml(json_obj, {
+		compact: true,
+
+	});
+	// testing reversibility, istrue
+	// console.log(reversed);
+
+	// disable for now until all validation functions refactored
+	// let valid = validate_model(xml_object);
+
+	// return (valid);
+	if(validation_result.pass) {
+		validation_result.json = json_obj;
+	}
+	return (validation_result);
 }
 
-let test = validate_xml("./tests/events/state_trigger_invalid_loc_2.xml");
-console.log(test);
+// let test = validate_xml("test.xml");
+// let test = validate_xml("tests/annot_species/wrong_binding.xml");
+
+// let test = validate_xml("tests/comparts/missing_id.xml");
+// let test = validate_xml("./test.xml");
+
+// fs.writeFileSync("test_out.xml", test2);
+
+console.log();

@@ -10,6 +10,12 @@ interface modelInterface {
 		events: any,
 	}
 	changeModelJson: Function,
+
+	compartList: Array<string>,
+	setCompartList: Function, 
+
+	annotSpeciesList: Array<any>, 
+	setAnnotSpeciesList: Function,
 }
 const modelContext = createContext<modelInterface>({
 	modelJson: {
@@ -21,6 +27,12 @@ const modelContext = createContext<modelInterface>({
 		events: null,
 	},
 	changeModelJson: (key: string, new_state: any) => {},
+
+	compartList: [], 
+	setCompartList: (compartments: Array<string>) => {}, 
+
+	annotSpeciesList: [], 
+	setAnnotSpeciesList: (annotSpecies: Array<any>) => {}, 
 });
 
 export default modelContext;

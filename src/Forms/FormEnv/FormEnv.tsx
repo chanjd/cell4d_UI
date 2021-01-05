@@ -1,11 +1,10 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Col, Row, Form, Button, InputGroup } from 'react-bootstrap'
 import * as yup from 'yup';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { schema } from '../../schema';
 import { Formik, getIn, useFormikContext } from 'formik';
 import modelContext from '../../modelContext';
-import { handleUpload } from '../../App';
 
 
 interface envVarFormat {
@@ -38,6 +37,11 @@ interface envVarFormat {
 
 export default function FormEnv(props: any) {
 	const modelChange = useContext(modelContext);
+
+	const [submitSuccess, setSubmitSuccess] = useState(false);
+	useEffect(() => { }, [submitSuccess])
+
+
 	let ts_factor = 1e-6;
 	let ss_factor = 1e-6;
 	const handleSubmit = (values: any) => {
@@ -70,18 +74,10 @@ export default function FormEnv(props: any) {
 			}
 		}
 		modelChange.changeModelJson("cell4d:environmentVariables", formObj);
-		// console.log(JSON.stringify(formObj));
+		setSubmitSuccess(true);
 	}
 
-	const uploaded = useContext(handleUpload);
 	let { values } = useFormikContext<envVarFormat>() ?? {};
-	// useEffect fires everytime the variable captured by [] is changed
-	// useEffect(() => {
-	// 	if(values?.["cell4d:TIMESCALE"]) {
-	// 		values["cell4d:TIMESCALE"]._text = modelChange.modelJson["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"] / ts_factor
-	// 		values["cell4d:SPACESCALE"]._text = modelChange.modelJson["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"] / ss_factor	
-	// 	}
-	// }, [modelChange.modelJson["cell4d:environmentVariables"]]);
 
 	return (
 		<div>
@@ -241,7 +237,8 @@ export default function FormEnv(props: any) {
 							</Form.Group>
 
 						</Form.Row>
-						<Button type="submit">Save Environmental Variables to model</Button>
+						<Button type="submit" onClick={() => setSubmitSuccess(false)}>Save Environmental Variables to model</Button>
+						{submitSuccess ? <><br/><br/><div className="alert-success col-lg justify-content-md-center">Environmental Variables saved to model!</div></> : null}
 
 					</Form>
 				)}

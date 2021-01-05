@@ -49,7 +49,40 @@ let initialState = {
 			}
 		]
 	},
-	annotSpecies: "",
+	annotSpecies: {
+		"cell4d:speciesType": [
+			{
+				_attributes: {
+					id: "",
+					speciesMoleculeType: "",
+				},
+				"cell4d:listOfValidCompartments": {
+					"cell4d:compartment": [
+						{
+							_attributes: {
+								id: ""
+							}
+						},
+					],
+				},
+				"cell4d:listOfBindingSites": {
+					"cell4d:bindingSite": [],
+				},
+				"cell4d:diffusionConstant": {
+					_attributes: {
+						value: 0,
+					},
+				},
+				"cell4d:displayProperties": {
+					_attributes: {
+						redValue: 0,
+						greenValue: 0,
+						blueValue: 0
+					},
+				},
+			}
+		]
+	},
 	species: "",
 	reactions: "",
 	events: "",

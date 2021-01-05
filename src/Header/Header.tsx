@@ -1,18 +1,11 @@
 import React, { useState, useEffect, useContext } from "react";
 import { Formik } from "formik";
 import './Header.css';
-import { Form, Button, Col, Alert } from 'react-bootstrap'
+import { Form, Button, Alert } from 'react-bootstrap'
 import modelContext from '../modelContext';
 import { showFormContext } from '../App';
-import { handleUpload } from '../App';
 import initialState from '../Forms/formInitialState'
 import { validate_xml } from '../xml_validate'
-
-
-// import xmlParser from "fast-xml-parser";
-const xmlParser = require('xml-js');
-
-
 
 
 interface HeaderProps {
@@ -23,12 +16,12 @@ interface HeaderProps {
 export default function Header(props: HeaderProps) {
 	const modelChange = useContext(modelContext);
 	const { showForm, changeFormDisplay } = useContext(showFormContext);
-	const { isUploaded, changeUploadStatus } = useContext(handleUpload);
+	// const { isUploaded, changeUploadStatus } = useContext(handleUpload);
 	const [showUpload, changeShowUpload] = useState(false);
 	const [uploadError, setUploadError] = useState(false);
 
-	let showUploadError = false;
-	
+	// let showUploadError = false;
+
 	let fileReader = new FileReader();
 	const submitUpload = (values: any) => {
 		// console.log(file);
@@ -37,7 +30,7 @@ export default function Header(props: HeaderProps) {
 		fileReader.onload = handleFileRead;
 		fileReader.readAsText(values.file);
 
-		
+
 		// changeShowUpload(true);
 		values.isLoading = false;
 		// changeUploadStatus(true);
@@ -49,7 +42,7 @@ export default function Header(props: HeaderProps) {
 
 		let validation_result = validate_xml(content, true);
 
-		if(validation_result.pass) {
+		if (validation_result.pass) {
 			setUploadError(false)
 		} else {
 			setUploadError(true)
@@ -68,10 +61,7 @@ export default function Header(props: HeaderProps) {
 
 		//breakdown xml object into 6 form sections
 		modelChange.changeModelJson("cell4d:environmentVariables", initialState);
-		console.log(initialState);
-
 		modelChange.changeModelJson("listOfCompartments", initialState);
-		console.log(initialState);
 	}
 
 	useEffect(() => {
@@ -114,18 +104,18 @@ export default function Header(props: HeaderProps) {
 									<Form.Group style={{ display: 'flex', justifyContent: 'center' }}>
 										{/* <Form.File name="file" onChange={(event: any) => { setFieldValue("file", event.currentTarget.files[0]) }} label="Load your existing XML model file" /> */}
 										<Form.File name="file" label="Load your existing XML model file"
-										onChange={(event: any) => { setFieldValue("file", event.currentTarget.files[0]); changeShowUpload(true); }} />
+											onChange={(event: any) => { setFieldValue("file", event.currentTarget.files[0]); changeShowUpload(true); }} />
 										{showUpload ? <Button type="submit" variant="light" size="sm" disabled={values.isLoading}>{values.isLoading ? `Loading...` : `Upload`}</Button> : null}
 									</Form.Group>
 								</Form.Row>
 								{uploadError ? <Alert variant="danger">File upload error, please try again</Alert> : null}
 								<Form.Row>
-									<p style={{ display: 'flex', justifyContent: 'center' }}>or</p>
+									{!showForm ? <p style={{ display: 'flex', justifyContent: 'center' }}>or</p> : null}
 								</Form.Row>
 								<Form.Row>
 									<Form.Group style={{ display: 'flex', justifyContent: 'center' }}>
 										{/* <Form.File name="file" onChange={(event: any) => { setFieldValue("file", event.currentTarget.files[0]) }} label="Load your existing XML model file" /> */}
-										<Button type="button" variant="light" size="sm" onClick={() => changeFormDisplay(true)}>Create new form</Button>
+										{!showForm ? <Button type="button" variant="light" size="sm" onClick={() => changeFormDisplay(true)}>Create new form</Button> : null}
 									</Form.Group>
 								</Form.Row>
 

@@ -42,8 +42,6 @@ export default function FormEnv(props: any) {
 	useEffect(() => { }, [submitSuccess])
 
 
-	let ts_factor = 1e-6;
-	let ss_factor = 1e-6;
 	const handleSubmit = (values: any) => {
 		let formObj = {
 			"cell4d:environmentVariables": {
@@ -60,10 +58,10 @@ export default function FormEnv(props: any) {
 					"_text": values["cell4d:GEOMETRY"]._text
 				},
 				"cell4d:TIMESCALE": {
-					"_text": parseFloat(values["cell4d:TIMESCALE"]._text) * ts_factor
+					"_text": parseFloat(values["cell4d:TIMESCALE"]._text)
 				},
 				"cell4d:SPACESCALE": {
-					"_text": parseFloat(values["cell4d:SPACESCALE"]._text) * ss_factor
+					"_text": parseFloat(values["cell4d:SPACESCALE"]._text)
 				},
 				"cell4d:INACCESSIBLE_SPACE_PERCENT": {
 					"_text": values["cell4d:INACCESSIBLE_SPACE_PERCENT"]._text
@@ -159,7 +157,7 @@ export default function FormEnv(props: any) {
 										isInvalid={getIn(touched, 'cell4d:SPACESCALE._text') && !!getIn(errors, 'cell4d:SPACESCALE._text')}
 									/>
 									<InputGroup.Append>
-										<InputGroup.Text id="ss_exponents">× 10 <sup>{Math.log10(ss_factor)}</sup>&nbsp;m</InputGroup.Text>
+										<InputGroup.Text id="ss_exponents">m</InputGroup.Text>
 									</InputGroup.Append>
 									<Form.Control.Feedback type="invalid">{getIn(errors, 'cell4d:SPACESCALE._text')}</Form.Control.Feedback>
 								</InputGroup>
@@ -215,7 +213,7 @@ export default function FormEnv(props: any) {
 										isInvalid={getIn(touched, 'cell4d:TIMESCALE._text') && !!getIn(errors, 'cell4d:TIMESCALE._text')}
 									/>
 									<InputGroup.Append>
-										<InputGroup.Text id="ts_exponents">× 10 <sup>{Math.log10(ts_factor)}</sup>&nbsp;s</InputGroup.Text>
+										<InputGroup.Text id="ts_exponents">s</InputGroup.Text>
 									</InputGroup.Append>
 									<Form.Control.Feedback type="invalid">{getIn(errors, 'cell4d:TIMESCALE._text')}</Form.Control.Feedback>
 								</InputGroup>

@@ -3,13 +3,14 @@ import { Col, Row, Form, Button, Container, Card, DropdownButton, InputGroup } f
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { schema } from '../../schema';
 import { Formik, FieldArray, getIn, withFormik, yupToFormErrors } from 'formik';
+import ColorPicker from '../colorPicker'
 import "../../optional"; // custom "optional" function for yup validation
 import modelContext from '../../modelContext';
 
 
 // function CustomValidate(values: any) {
 // 	const model = useContext(modelContext);
-	
+
 // 	return schema.annotSpecies
 // 		.validate(values, { abortEarly: false, context: model.compartList })
 // 		.catch(err => {
@@ -17,7 +18,6 @@ import modelContext from '../../modelContext';
 // 		});
 
 // }
-
 
 // use multiselect dropdown for compartemnts
 export default function FormAnnot(props: any) {
@@ -68,20 +68,24 @@ export default function FormAnnot(props: any) {
 
 	const model = useContext(modelContext);
 	const handleSubmit = (values: any) => {
-		let comparts_out = {
+		let annot_out = {
 			annotSpecies: {
 				"cell4d:speciesType": values["cell4d:speciesType"]
 			}
 		}
-		model.changeModelJson("listOfCompartments", comparts_out);
+		model.changeModelJson("annotSpecies", annot_out);
 		console.log(JSON.stringify(values["cell4d:speciesType"]));
 	}
+
+	// const handleColor = (color: any) => {
+	// 	color.rgb;
+	// }
 
 	return (
 		<div>
 			<Formik
 				// validate={CustomValidate}
-				validationSchema={schema.annotSpecies}
+				validationSchema={schema.annotSpecies(model.compartList)}
 				onSubmit={handleSubmit}
 				enableReinitialize={true}
 				initialValues={props.initialValues} >
@@ -92,6 +96,7 @@ export default function FormAnnot(props: any) {
 					values,
 					touched,
 					errors,
+					setFieldValue
 				}) => (
 					<Form onSubmit={handleSubmit} noValidate>
 						<Container>
@@ -101,7 +106,7 @@ export default function FormAnnot(props: any) {
 										<div key={index}>
 											<Card >
 												<Row style={{ paddingTop: 10 }}>
-													<Col xs={2.5} style={{ paddingLeft: 25 }}>
+													<Col xs={3} style={{ paddingLeft: 30 }}>
 														<Form.Label>Molecule name</Form.Label>
 														<Form.Control className="form-control" size="sm"
 															name={`cell4d:speciesType.[${index}]._attributes.id`}
@@ -116,37 +121,35 @@ export default function FormAnnot(props: any) {
 														<br />
 														<Button className="form-control" type="button" variant="outline-danger" onClick={() => arrayHelpers.remove(index)}>Remove molecule</Button>
 													</Col>
-													<Col xs={2}>
+													<Col xs={3}>
 														<FieldArray name={`cell4d:speciesType.[${index}]["cell4d:listOfValidCompartments"]["cell4d:compartment"]`} render={arrayHelpers => {
 															return (<div> {
 																values?.["cell4d:speciesType"]?.[index]?.["cell4d:listOfValidCompartments"]?.["cell4d:compartment"] && values?.["cell4d:speciesType"]?.[index]?.["cell4d:listOfValidCompartments"]?.["cell4d:compartment"].length > 0 ?
 																	values["cell4d:speciesType"][index]["cell4d:listOfValidCompartments"]["cell4d:compartment"].map((compart: any, cIndex: number) => (
 																		<div key={cIndex}>
-																			<Form.Row>
-																				{cIndex === 0 ? <Form.Label>List of valid compartments</Form.Label> : null}
-																				<Form.Control as="select" custom
-																					id="dropdown-basic-button"
-																					size="sm"
-																					name={`cell4d:speciesType.[${index}]["cell4d:listOfValidCompartments"]["cell4d:compartment"].[${cIndex}][_attributes].id`}
-																					value={values["cell4d:speciesType"][index]["cell4d:listOfValidCompartments"]["cell4d:compartment"][cIndex]._attributes.id}
-																					// title={selected ? props.value : props.menuLabel}
-																					onChange={handleChange}
-																					onBlur={handleBlur}
-																				>
-																					{!values["cell4d:speciesType"][index]["cell4d:listOfValidCompartments"]["cell4d:compartment"][cIndex]._attributes.id ?
-																						<option value="">compartment</option>
-																						: null}
-																					{model.compartList.map((element: any, index: number) => {
-																						return (
-																							<option value={element}>{element}</option>
-																						)
-																					})
-																					}
-																				</Form.Control>
-																				<div className="form-group align-self-end">
-																					<Button type="button" size="sm" variant="outline-danger" onClick={() => arrayHelpers.remove(cIndex)}>Remove compartment</Button>
-																				</div>
-																			</Form.Row>
+																			{cIndex === 0 ? <Form.Label>List of valid compartments</Form.Label> : null}
+																			<Form.Control as="select" custom
+																				id="dropdown-basic-button"
+																				size="sm"
+																				name={`cell4d:speciesType.[${index}]["cell4d:listOfValidCompartments"]["cell4d:compartment"].[${cIndex}][_attributes].id`}
+																				value={values["cell4d:speciesType"][index]["cell4d:listOfValidCompartments"]["cell4d:compartment"][cIndex]._attributes.id}
+																				// title={selected ? props.value : props.menuLabel}
+																				onChange={handleChange}
+																				onBlur={handleBlur}
+																			>
+																				{!values["cell4d:speciesType"][index]["cell4d:listOfValidCompartments"]["cell4d:compartment"][cIndex]._attributes.id ?
+																					<option value="">compartment</option>
+																					: null}
+																				{model.compartList.map((element: any, index: number) => {
+																					return (
+																						<option value={element}>{element}</option>
+																					)
+																				})
+																				}
+																			</Form.Control>
+																			<div className="form-group align-self-start">
+																				<Button type="button" size="sm" variant="outline-danger" onClick={() => arrayHelpers.remove(cIndex)}>Remove compartment</Button>
+																			</div>
 																		</div>
 																	)) : null
 															}
@@ -164,59 +167,41 @@ export default function FormAnnot(props: any) {
 														}}
 														/>
 													</Col>
-													<Col xs={2}>
+													<Col xs={3}>
 														<Form.Label>Diffusion constant</Form.Label>
-														<Form.Control type="number" className="form-control" size="sm"
-															name={`cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`}
-															value={values["cell4d:speciesType"][index]["cell4d:diffusionConstant"]._attributes.value}
-															onChange={handleChange}
-															onBlur={handleBlur}
-															isValid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`) &&
-																!getIn(errors, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`)}
-															isInvalid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`) &&
-																!!getIn(errors, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`)} />
-														<Form.Control.Feedback type="invalid">{getIn(errors, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`)}</Form.Control.Feedback>
-													</Col>
-													<Col xs={4}>
-														<Form.Label>Color</Form.Label>
-														<InputGroup className="mb-3">
+														<InputGroup size="sm">
 															<Form.Control type="number" className="form-control" size="sm"
-																name={`cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.redValue`}
-																value={values["cell4d:speciesType"][index]["cell4d:displayProperties"]._attributes.redValue}
+																name={`cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`}
+																value={values["cell4d:speciesType"][index]["cell4d:diffusionConstant"]._attributes.value}
 																onChange={handleChange}
 																onBlur={handleBlur}
-																isValid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.redValue`) &&
-																	!getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.redValue`)}
-																isInvalid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.redValue`) &&
-																	!!getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.redValue`)} />
-															<Form.Control.Feedback type="invalid">{getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.redValue`)}</Form.Control.Feedback>
-															<Form.Control type="number" className="form-control" size="sm"
-																name={`cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.greenValue`}
-																value={values["cell4d:speciesType"][index]["cell4d:displayProperties"]._attributes.greenValue}
-																onChange={handleChange}
-																onBlur={handleBlur}
-																isValid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.greenValue`) &&
-																	!getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.greenValue`)}
-																isInvalid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.greenValue`) &&
-																	!!getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.greenValue`)} />
-															<Form.Control.Feedback type="invalid">{getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.greenValue`)}</Form.Control.Feedback>
-															<Form.Control type="number" className="form-control" size="sm"
-																name={`cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.blueValue`}
-																value={values["cell4d:speciesType"][index]["cell4d:displayProperties"]._attributes.blueValue}
-																onChange={handleChange}
-																onBlur={handleBlur}
-																isValid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.blueValue`) &&
-																	!getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.blueValue`)}
-																isInvalid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.blueValue`) &&
-																	!!getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.blueValue`)} />
-															<Form.Control.Feedback type="invalid">{getIn(errors, `cell4d:speciesType.[${index}][cell4d:displayProperties]._attributes.blueValue`)}</Form.Control.Feedback>
-
+																isValid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`) &&
+																	!getIn(errors, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`)}
+																isInvalid={getIn(touched, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`) &&
+																	!!getIn(errors, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`)} />
+															<InputGroup.Append>
+																<InputGroup.Text id="diff_const">m<sup>2</sup>/s</InputGroup.Text>
+															</InputGroup.Append>
+															<Form.Control.Feedback type="invalid">{getIn(errors, `cell4d:speciesType.[${index}][cell4d:diffusionConstant]._attributes.value`)}</Form.Control.Feedback>
 														</InputGroup>
 													</Col>
+													<Col xs={2} style={{ paddingRight: 30 }}>
+														<Form.Label>Color</Form.Label>
+														<ColorPicker onChange={(color: { rgb: any }) => {
+															setFieldValue(`cell4d:speciesType[${index}]["cell4d:displayProperties"]._attributes.redValue`, color.rgb.r)
+															setFieldValue(`cell4d:speciesType[${index}]["cell4d:displayProperties"]._attributes.greenValue`, color.rgb.g)
+															setFieldValue(`cell4d:speciesType[${index}]["cell4d:displayProperties"]._attributes.blueValue`, color.rgb.b)
+														}}
+															red={values["cell4d:speciesType"][index]["cell4d:displayProperties"]._attributes.redValue}
+															green={values["cell4d:speciesType"][index]["cell4d:displayProperties"]._attributes.greenValue}
+															blue={values["cell4d:speciesType"][index]["cell4d:displayProperties"]._attributes.blueValue}
+														/>
+													</Col>
+
 												</Row>
 												{/* list of sites */}
 												<Row>
-													<Col xs={{ span: 6, offset: 5 }}>
+													<Col xs={{ span: 8, offset: 4 }} style={{ paddingRight: 30 }}>
 														<FieldArray name={`cell4d:speciesType.[${index}]["cell4d:listOfBindingSites"]["cell4d:bindingSite"]`} render={arrayHelpers => {
 															return (<div> {
 																values?.["cell4d:speciesType"]?.[index]?.["cell4d:listOfBindingSites"]?.["cell4d:bindingSite"] && values?.["cell4d:speciesType"]?.[index]?.["cell4d:listOfBindingSites"]?.["cell4d:bindingSite"].length > 0 ?
@@ -227,7 +212,7 @@ export default function FormAnnot(props: any) {
 																			<Card border="light" >
 																				<Card.Body>
 																					<Row>
-																						<Col>
+																						<Col xs={5}>
 																							<InputGroup>
 																								<Form.Control className="form-control" size="sm"
 																									name={`cell4d:speciesType.[${index}]["cell4d:listOfBindingSites"]["cell4d:bindingSite"].[${bIndex}][_attributes].id`}
@@ -247,11 +232,12 @@ export default function FormAnnot(props: any) {
 																							label={values.site}
 																						/> */}
 																							</InputGroup>
+																							<br />
 																							<div className="form-group align-self-start">
 																								<Button type="button" size="sm" variant="outline-danger" onClick={() => arrayHelpers.remove(bIndex)}>Remove site</Button>
 																							</div>
 																						</Col>
-																						<Col>
+																						<Col xs={7}>
 																							{/* list of possible states */}
 																							<FieldArray name={`cell4d:speciesType.[${index}]["cell4d:listOfBindingSites"]["cell4d:bindingSite"][${bIndex}]["cell4d:listOfPossibleStates"]["cell4d:state"]`} render={arrayHelpers => {
 																								return (<div> {
@@ -273,7 +259,7 @@ export default function FormAnnot(props: any) {
 																																!!getIn(errors, `cell4d:speciesType[${index}]["cell4d:listOfBindingSites"]["cell4d:bindingSite"][${bIndex}]["cell4d:listOfPossibleStates"]["cell4d:state"][${sIndex}][_attributes].value`)} />
 																														<Form.Control.Feedback type="invalid">{getIn(errors, `cell4d:speciesType[${index}]["cell4d:listOfBindingSites"]["cell4d:bindingSite"][${bIndex}]["cell4d:listOfPossibleStates"]["cell4d:state"][${sIndex}][_attributes].value`)}</Form.Control.Feedback>
 																													</Form.Group>
-																													<div className="form-group align-self-end">
+																													<div className="form-group">
 																														<Button type="button" size="sm" variant="outline-danger" onClick={() => arrayHelpers.remove(sIndex)}>Remove state</Button>
 																													</div>
 																												</Form.Row>
@@ -320,7 +306,7 @@ export default function FormAnnot(props: any) {
 							{/* <pre>{JSON.stringify(values?.["cell4d:speciesType"][0]["cell4d:listOfValidCompartments"]["cell4d:compartment"], null, 2)}</pre> */}
 
 							<Button type="submit">Save base molecules to model</Button>
-							<pre>{JSON.stringify(errors, null, 2)}</pre>
+							{/* <pre>{JSON.stringify(values, null, 2)}</pre> */}
 
 						</Container>
 					</Form>

@@ -19,6 +19,7 @@ export default function Header(props: HeaderProps) {
 	// const { isUploaded, changeUploadStatus } = useContext(handleUpload);
 	const [showUpload, changeShowUpload] = useState(false);
 	const [uploadError, setUploadError] = useState(false);
+	const [uploadErrorMsg, setUploadErrorMsg] = useState({});
 
 	// let showUploadError = false;
 
@@ -46,18 +47,20 @@ export default function Header(props: HeaderProps) {
 			setUploadError(false)
 		} else {
 			setUploadError(true)
+			setUploadErrorMsg(validation_result.errors)
 			return;
 		}
 
 		changeFormDisplay(true);
 		initialState["cell4d:environmentVariables"] = validation_result.json["sbml"]["model"]["annotation"]["cell4d:environmentVariables"];
 		initialState["listOfCompartments"] = validation_result.json["sbml"]["model"]["listOfCompartments"];
+		initialState["annotSpecies"] = validation_result.json["sbml"]["model"]["annotation"]["cell4d:listOfAnnotationSpeciesTypes"];
 
 		// temp workaround to keep units consistent when loading time/space scale
-		let ts_factor = 1e-6;
-		let ss_factor = 1e-6;
-		initialState["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"] = initialState["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"] / ts_factor;
-		initialState["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"] = initialState["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"] / ss_factor;
+		// let ts_factor = 1e-6;
+		// let ss_factor = 1e-6;
+		initialState["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"] = initialState["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"];
+		initialState["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"] = initialState["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"];
 
 		//breakdown xml object into 6 form sections
 		modelChange.changeModelJson("cell4d:environmentVariables", initialState);
@@ -108,7 +111,8 @@ export default function Header(props: HeaderProps) {
 										{showUpload ? <Button type="submit" variant="light" size="sm" disabled={values.isLoading}>{values.isLoading ? `Loading...` : `Upload`}</Button> : null}
 									</Form.Group>
 								</Form.Row>
-								{uploadError ? <Alert variant="danger">File upload error, please try again</Alert> : null}
+								{uploadError ? <Alert variant="danger">File upload error.</Alert> : null}
+								{uploadError ? <Alert variant="danger"><pre style={{textAlign: 'left'}}>{JSON.stringify(uploadErrorMsg, null, 2)}</pre></Alert> : null}
 								<Form.Row>
 									{!showForm ? <p style={{ display: 'flex', justifyContent: 'center' }}>or</p> : null}
 								</Form.Row>

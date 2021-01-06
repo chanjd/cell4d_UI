@@ -53,7 +53,6 @@ function define_schemas() {
 
 
 	let possible_compart_errors = ["missing_var", "invalid_var"];
-
 	const compartSchema = yup.object().shape({
 		compartment: yup.array().of(
 			yup.object().shape({
@@ -62,6 +61,24 @@ function define_schemas() {
 						.min(1),
 				}).required(),
 				annotation: yup.object().shape({
+					"cell4d:compartmentProperties": yup.object().shape({
+						_attributes: yup.object().shape({
+							type: yup.string().required()
+								.oneOf(["membrane"]),
+							axis: yup.string().required()
+								.oneOf(["x", "y", "z"]),
+							face: yup.string().required()
+								.oneOf(["front", "back"]),
+							membraneEmissionRate: yup.number().required()
+								.typeError()
+								.min(0)
+								.max(1),
+							absorptionRate: yup.number().required()
+								.typeError()
+								.min(0)
+								.max(1),
+						})
+					}).optional(),
 					"cell4d:latticePointDefinition": yup.array().of(
 						yup.object().shape({
 							_attributes: yup.object().shape({
@@ -94,22 +111,6 @@ function define_schemas() {
 							})
 						})
 					).required(),
-					compartmentProperties: yup.object().shape({
-						type: yup.string().required()
-							.oneOf(["membrane"]),
-						axis: yup.string().required()
-							.oneOf(["x", "y", "z"]),
-						face: yup.string().required()
-							.oneOf(["front", "back"]),
-						membraneEmissionRate: yup.number().required()
-							.typeError()
-							.min(0)
-							.max(1),
-						absorptionRate: yup.number().required()
-							.typeError()
-							.min(0)
-							.max(1),
-					}).optional(),
 				}).required(),
 			})
 		).test({
@@ -119,101 +120,93 @@ function define_schemas() {
 				let compart_ids: Array<string> = value.map((compart: any) => {
 					return (compart._attributes.id)
 				});
-				let result1 = new Set(compart_ids).size;
-				let result2 = (compart_ids.length)
-				let result3 = (new Set(compart_ids).size === compart_ids.length)
-				return (result3);
+				let result = (new Set(compart_ids).size === compart_ids.length)
+				return (result);
 			},
 		})
 	});
 
 	let possible_annot_species_errors = ["missing_var", "invalid_var", "no_match"];
-
-	const annotSpeciesSchema = yup.object().shape({
-		"cell4d:speciesType": yup.array().of(
-			yup.object().shape({
-				_attributes: yup.object().shape({
-					id: yup.string().required("Missing name"),
-					// speciesMoleculeType: yup.string().required(possible_annot_species_errors[0])
-					// 	.oneOf(["SIMPLE_MOLECULE", "PROTEIN"], possible_annot_species_errors[1]),
-				}),
-				"cell4d:listOfValidCompartments": yup.object().shape({
-					"cell4d:compartment": yup.array().of(
-						yup.object().shape({
-							_attributes: yup.object().shape({
-								id: yup.string().required(possible_annot_species_errors[0]),
-							}),
-						}).required(),
-					)
-					.required(possible_annot_species_errors[0]).test({
-						name: "valid compartments",
-						message: possible_annot_species_errors[2],
-						exclusive: false,
-						test: function (compart_array: any) {
-							// skip this test if the valid compart array is missing
-							if (!compart_array) {
-								return (true);
-							}
-							if ((!this.options.context || Object.keys(this.options.context).length  === 0) && this?.options?.context?.constructor === Object) {
-								return (false);
-							}
-							// typescript doesn't know what properties context obj has, will try to give error
-							// force cast the context to the right type, check to make sure property exists after
-							let extracted_context: any = this.options.context;
-							if (!extracted_context) {
-								return (false);
-							}
-							let external_compart_list: Array<string> = extracted_context;
-							// get the compartment id list from nested compartment json
-							let valid_comparts = compart_array.map((compart: { _attributes: { id: string; } }) => { return compart._attributes.id })
-							return (valid_comparts.every((compart: string) => external_compart_list.includes(compart)));
-						},
-					}),
-				}),
-				"cell4d:listOfBindingSites": yup.object().shape({
-					"cell4d:bindingSite": yup.array().of(
-						yup.object().shape({
-							_attributes: yup.object().shape({
-								id: yup.string().required(possible_annot_species_errors[0]),
-							}),
-							"cell4d:listOfPossibleStates": yup.object().shape({
-								"cell4d:state": yup.array().of(
-									yup.object().shape({
-										_attributes: yup.object().shape({
-											value: yup.string().required(possible_annot_species_errors[0]),
-										}),
-									}).required(possible_annot_species_errors[0]),
-								).required(possible_annot_species_errors[0]),
-							}).optional(),
-						}).required(possible_annot_species_errors[0]),
-					).optional(),
-				}).optional(),
-				"cell4d:diffusionConstant": yup.object().shape({
+	// function that returns a schema, it changes based on the input compartment list. if nothing is input the list of valid comparts test will always fail
+	const annotSpeciesSchema: any = (ext_compart_list: Array<string>) => {
+		return (yup.object().shape({
+			"cell4d:speciesType": yup.array().of(
+				yup.object().shape({
 					_attributes: yup.object().shape({
-						value: yup.number().required(possible_annot_species_errors[0])
-							.typeError(possible_annot_species_errors[1])
-							.min(0, possible_annot_species_errors[1])
+						id: yup.string().required("Missing name"),
+						// speciesMoleculeType: yup.string().required(possible_annot_species_errors[0])
+						// 	.oneOf(["SIMPLE_MOLECULE", "PROTEIN"], possible_annot_species_errors[1]),
 					}),
-				}),
-				"cell4d:displayProperties": yup.object().shape({
-					_attributes: yup.object().shape({
-						redValue: yup.number().required(possible_annot_species_errors[0])
-							.typeError(possible_annot_species_errors[1])
-							.min(0, possible_annot_species_errors[1])
-							.max(255, possible_annot_species_errors[1]),
-						greenValue: yup.number().required(possible_annot_species_errors[0])
-							.typeError(possible_annot_species_errors[1])
-							.min(0, possible_annot_species_errors[1])
-							.max(255, possible_annot_species_errors[1]),
-						blueValue: yup.number().required(possible_annot_species_errors[0])
-							.typeError(possible_annot_species_errors[1])
-							.min(0, possible_annot_species_errors[1])
-							.max(255, possible_annot_species_errors[1]),
+					"cell4d:listOfValidCompartments": yup.object().shape({
+						"cell4d:compartment": yup.array().of(
+							yup.object().shape({
+								_attributes: yup.object().shape({
+									id: yup.string().required(possible_annot_species_errors[0]),
+								}),
+							}).required(),
+						).required(possible_annot_species_errors[0]).test({
+							name: "valid compartments",
+							message: possible_annot_species_errors[2],
+							exclusive: false,
+							test: function (compart_array: any) {
+								// skip this test if the valid compart array is missing
+								if (!compart_array) {
+									return (true);
+								}
+								if (!ext_compart_list || ext_compart_list.length === 0) {
+									return (false);
+								}
+								// get the compartment id list from nested compartment json
+								let valid_comparts = compart_array.map((compart: { _attributes: { id: string; } }) => { return compart._attributes.id })
+								return (valid_comparts.every((compart: string) => ext_compart_list.includes(compart)));
+							},
+						}),
 					}),
-				}),
-			})
-		)
-	});
+					"cell4d:listOfBindingSites": yup.object().shape({
+						"cell4d:bindingSite": yup.array().of(
+							yup.object().shape({
+								_attributes: yup.object().shape({
+									id: yup.string().required(possible_annot_species_errors[0]),
+								}),
+								"cell4d:listOfPossibleStates": yup.object().shape({
+									"cell4d:state": yup.array().of(
+										yup.object().shape({
+											_attributes: yup.object().shape({
+												value: yup.string().required(possible_annot_species_errors[0]),
+											}),
+										}).required(possible_annot_species_errors[0]),
+									).required(possible_annot_species_errors[0]),
+								}).optional(),
+							}).required(possible_annot_species_errors[0]),
+						).optional(),
+					}).optional(),
+					"cell4d:diffusionConstant": yup.object().shape({
+						_attributes: yup.object().shape({
+							value: yup.number().required(possible_annot_species_errors[0])
+								.typeError(possible_annot_species_errors[1])
+								.min(0, possible_annot_species_errors[1])
+						}),
+					}),
+					"cell4d:displayProperties": yup.object().shape({
+						_attributes: yup.object().shape({
+							redValue: yup.number().required(possible_annot_species_errors[0])
+								.typeError(possible_annot_species_errors[1])
+								.min(0, possible_annot_species_errors[1])
+								.max(255, possible_annot_species_errors[1]),
+							greenValue: yup.number().required(possible_annot_species_errors[0])
+								.typeError(possible_annot_species_errors[1])
+								.min(0, possible_annot_species_errors[1])
+								.max(255, possible_annot_species_errors[1]),
+							blueValue: yup.number().required(possible_annot_species_errors[0])
+								.typeError(possible_annot_species_errors[1])
+								.min(0, possible_annot_species_errors[1])
+								.max(255, possible_annot_species_errors[1]),
+						}),
+					}),
+				})
+			)
+		}))
+	};
 	interface annotSpecies {
 		id: string,
 		sites: Array<{
@@ -233,53 +226,53 @@ function define_schemas() {
 	// custom deep compare function of base annotation species
 	// fullMatch requires annotSpecies and species to have matching numbers of sites & site states must all be consistent
 	// non-fullMatch only requires state consistency, species sites can be a subset of annotspecies sites
-	// let compare_to_annotSpecies = function (species: species, annot: annotSpecies, fullMatch = true) {
-	// 	let matched = true;
-	// 	// check name of species
-	// 	if (species.id !== annot.id) {
-	// 		matched = false;
-	// 	} else {
-	// 		let species_site_ids = species.sites.map((site: any) => { return site.id });
-	// 		let annotSpecies_site_ids = annot.sites.map((site: any) => { return site.id });
+	let compare_to_annotSpecies = function (species: species, annot: annotSpecies, fullMatch = true) {
+		let matched = true;
+		// check name of species
+		if (species.id !== annot.id) {
+			matched = false;
+		} else {
+			let species_site_ids = species.sites.map((site: any) => { return site.id });
+			let annotSpecies_site_ids = annot.sites.map((site: any) => { return site.id });
 
-	// 		let matched_site_id = species_site_ids.every((site: string) => annotSpecies_site_ids.includes(site))
-	// 		let reversed_matched_site_id = annotSpecies_site_ids.every((site: string) => species_site_ids.includes(site))
-	// 		// check if site names match
-	// 		if (fullMatch && ((species.sites.length !== annot.sites.length) || !matched_site_id || !reversed_matched_site_id)) {
-	// 			matched = false;
-	// 		} else {
-	// 			// match every site of species with annotation species
-	// 			let matched_sites: boolean = species.sites.every((species_site: any) => {
-	// 				// get the matching site of the annotation species
-	// 				let annot_site = annot.sites.find((annot_site) => {
-	// 					annot_site.id === species_site.id
-	// 				}, (species_site))
-	// 				if (!annot_site) {
-	// 					return (false)
-	// 				}
-	// 				// if species site is state and annot site is binding, or vice versa, return false
-	// 				if ((!species_site.state && annot_site?.states.length !== 0) || (species_site.state && annot_site?.states.length === 0)) {
-	// 					return (false);
-	// 				}
-	// 				// match species site state to annot species site states
-	// 				let matched = annot_site?.states.find(species_site.state);
-	// 				if (!matched) {
-	// 					return (false);
-	// 				}
-	// 				return (true);
-	// 			});
-	// 			matched = matched_sites;
-	// 		}
+			let matched_site_id = species_site_ids.every((site: string) => annotSpecies_site_ids.includes(site))
+			let reversed_matched_site_id = annotSpecies_site_ids.every((site: string) => species_site_ids.includes(site))
+			// check if site names match
+			if (fullMatch && ((species.sites.length !== annot.sites.length) || !matched_site_id || !reversed_matched_site_id)) {
+				matched = false;
+			} else {
+				// match every site of species with annotation species
+				let matched_sites: boolean = species.sites.every((species_site: any) => {
+					// get the matching site of the annotation species
+					let annot_site = annot.sites.find((annot_site) => {
+						return (annot_site.id === species_site.id)
+					}, (species_site))
+					if (!annot_site) {
+						return (false)
+					}
+					// if species site is state and annot site is binding, or vice versa, return false
+					if ((!species_site.state && annot_site?.states.length !== 0) || (species_site.state && annot_site?.states.length === 0)) {
+						return (false);
+					}
+					// match species site state to annot species site states
+					let matched = annot_site?.states.find(species_site.state);
+					if (!matched) {
+						return (false);
+					}
+					return (true);
+				});
+				matched = matched_sites;
+			}
 
-	// 	}
-	// 	return (matched);
-	// }
+		}
+		return (matched);
+	}
 
 	let schema = {
 		envVar: envvarSchema,
 		compart: compartSchema,
 		annotSpecies: annotSpeciesSchema,
-		// compare_to_annotSpecies: compare_to_annotSpecies,
+		compare_to_annotSpecies: compare_to_annotSpecies,
 	}
 	return (schema);
 }

@@ -1,6 +1,7 @@
-import * as yup from 'yup'; // for everything
+// import * as yup from 'yup'; // for everything
 import { schema } from './schema';
 import "./optional"; // custom "optional" function for yup validation
+import { ValidationError } from 'yup';
 declare var require: any
 const { strict, match } = require("assert");
 const { ENGINE_METHOD_DSA } = require("constants");
@@ -78,24 +79,26 @@ let validate_env = function (env_model: any, schema: any): { pass: boolean, erro
 let validate_comparts = function (compart_model: any, schema: any): { pass: boolean, errors: Array<string>, longErrors: Array<validationError> } {
 	let output = { pass: true, errors: Array<string>(), longErrors: Array<validationError>() }
 
-	if (!Array.isArray(compart_model)) compart_model = [compart_model];
+	// if (!Array.isArray(compart_model)) compart_model = [compart_model];
 	let validate_errors: Array<string> = [];
 	let long_errors: Array<validationError> = [];
 
 	// grab all errors thrown by validateSync
 	try {
-		Object.values(compart_model).forEach(function (compart: any) {
-			schema.validateSync(compart, { abortEarly: false });
-		});
+		schema.validateSync(compart_model, { abortEarly: false });
 	} catch (error) {
-		long_errors = error.inner.map((error_element: any) => {
-			return ({
-				path: error_element.path,
-				message: error_element.message
+		if(error instanceof ValidationError) {
+			long_errors = error.inner.map((error_element: any) => {
+				return ({
+					path: error_element.path,
+					message: error_element.message
+				})
 			})
-		})
-		let error_out = error.errors;
-		validate_errors = [...validate_errors, ...error_out];
+			let error_out = error.errors;
+			validate_errors = [...validate_errors, ...error_out];
+		} else {
+			console.log();
+		}
 	}
 
 	if (validate_errors.length !== 0) output.pass = false;
@@ -107,15 +110,16 @@ let validate_comparts = function (compart_model: any, schema: any): { pass: bool
 
 let validate_annot_species = function (annot_model: any, compart_list: Array<string>, schema: any): { pass: boolean, errors: Array<string>, longErrors: Array<validationError> } {
 	let output = { pass: true, errors: Array<string>(), longErrors: Array<validationError>() }
-	if (!Array.isArray(annot_model)) annot_model = [annot_model];
 	let validate_errors: Array<string> = [];
 	let long_errors: Array<validationError> = [];
 
 	// grab all errors thrown by validateSync
 	try {
-		Object.values(annot_model).forEach(function (annot: any) {
-			schema.validateSync(annot, { abortEarly: false, context: compart_list });
+		// provide compartment list to schema-generation function
+		schema(compart_list).validateSync(annot_model, { abortEarly: false });
 
+		// step through each base molecule to check for bulk binding sites
+		Object.values(annot_model["cell4d:speciesType"]).forEach(function (annot: any) {
 			// workaround, disallow bulk from having binding sites
 			if (annot?._attributes?.speciesMoleculeType === "SIMPLE_MOLECULE") {
 				if (annot?.["cell4d:listOfBindingSites"]) {
@@ -843,8 +847,8 @@ let validate_model = function (xml_obj: any): any {
 	// }
 
 	// validate compartments
-	let compart_model = xml_model["listOfCompartments"]["compartment"];
-	let compart_list: Array<string> = compart_model.map((compart: { id: any; }) => { return compart.id })
+	let compart_model = xml_model["listOfCompartments"];
+	let compart_list: Array<string> = compart_model.compartment.map((compart: { id: any; }) => { return compart.id })
 	let check_compart = validate_comparts(compart_model, schemas.compart);
 	// if (!check_compart.pass) {
 	// 	output.errors.compartment = check_compart.errors.slice();
@@ -856,7 +860,7 @@ let validate_model = function (xml_obj: any): any {
 	let annotspecies_bindings_list: Array<{ id: string, sites: any }> = [];
 	if (annot_species) {
 		let annotspecies_model = xml_model["annotation"]["cell4d:listOfAnnotationSpeciesTypes"]["cell4d:speciesType"];
-		if (!Array.isArray(annotspecies_model)) annotspecies_model = [annotspecies_model];
+		// if (!Array.isArray(annotspecies_model)) annotspecies_model = [annotspecies_model];
 
 		let metabolites = annotspecies_model.filter((species: { speciesMoleculeType: string; id: any; }) => {
 			if (species.speciesMoleculeType === "SIMPLE_MOLECULE") {
@@ -882,8 +886,9 @@ let validate_model = function (xml_obj: any): any {
 			})
 			return { id: species_id, sites: sites }
 		})
+		let annotspecies_model_long = xml_model["annotation"]["cell4d:listOfAnnotationSpeciesTypes"];
 
-		let check_annotspecies = validate_annot_species(annotspecies_model, compart_list, schema.annotSpecies);
+		let check_annotspecies = validate_annot_species(annotspecies_model_long, compart_list, schema.annotSpecies);
 		// if (!check_annotspecies.pass) {
 		// 	output.errors.annot_species = check_annotspecies.errors.slice();
 		// 	output.pass = false;
@@ -930,8 +935,6 @@ let validate_model = function (xml_obj: any): any {
 	return (output);
 };
 
-
-
 export let validate_xml = function (xml_file: string, raw_string = false): any {
 	let validation_result = {
 		pass: true,
@@ -958,7 +961,7 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 
 	// allow raw string as input for this function, or a file path. default is file path
 	var xml_string;
-	if(raw_string) {
+	if (raw_string) {
 		xml_string = xml_file;
 	} else {
 		try {
@@ -968,7 +971,7 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 				console.error(`File ${xml_file} not found.`)
 				return;
 			}
-		}	
+		}
 	}
 
 	// list of nodes that should always be arrays when doing the xml -> json conversion
@@ -987,13 +990,11 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 			alwaysArray: arrayNotation,
 		});
 		json_obj = JSON.parse(json_string);
-	} catch(err) {
+	} catch (err) {
 		validation_result.pass = false;
 		validation_result.errors.general = ["File read failed."];
-		return(validation_result);
+		return;
 	}
-
-	
 
 
 	// ensure all mandatory groups are there. Environmental variables, compartments
@@ -1044,13 +1045,9 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 
 
 
-
-
-
-
 	let jsonEnv = json_obj?.sbml?.model?.annotation?.["cell4d:environmentVariables"];
-	let jsonComparts = json_obj?.sbml?.model?.listOfCompartments?.compartment;
-	let jsonAnnotSpecies = json_obj?.sbml?.model?.annotation?.["cell4d:listOfAnnotationSpeciesTypes"]?.["cell4d:speciesType"];
+	let jsonComparts = json_obj?.sbml?.model?.listOfCompartments;
+	let jsonAnnotSpecies = json_obj?.sbml?.model?.annotation?.["cell4d:listOfAnnotationSpeciesTypes"];
 	let validEnv = validate_env(jsonEnv, schema.envVar);
 	validation_result.errors.env_var = validEnv.errors.slice();
 
@@ -1062,7 +1059,7 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 		validation_result.pass = false;
 		return (validation_result)
 	}
-	let compart_list: Array<string> = jsonComparts.map((compart: { _attributes: { id: string; } }) => { return compart._attributes.id })
+	let compart_list: Array<string> = jsonComparts.compartment.map((compart: { _attributes: { id: string; } }) => { return compart._attributes.id })
 
 	let annotSpecies_list: Array<{ id: string, sites: Array<{ id: string, state: Array<string> }> }>;
 	if (jsonAnnotSpecies) {
@@ -1083,7 +1080,7 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 		// 		state: Array<string>
 		// 	}>
 		// }
-		annotSpecies_list = jsonAnnotSpecies.map((annotSpecies: any) => {
+		annotSpecies_list = jsonAnnotSpecies["cell4d:speciesType"].map((annotSpecies: any) => {
 			let id: string = annotSpecies._attributes.id;
 			let sites: Array<{ id: string, states: Array<string> }>;
 
@@ -1108,7 +1105,6 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 					})
 				});
 			}
-
 			return ({ id: id, sites: sites });
 		})
 
@@ -1126,13 +1122,13 @@ export let validate_xml = function (xml_file: string, raw_string = false): any {
 	// let valid = validate_model(xml_object);
 
 	// return (valid);
-	if(validation_result.pass) {
+	if (validation_result.pass) {
 		validation_result.json = json_obj;
 	}
 	return (validation_result);
 }
 
-// let test = validate_xml("test.xml");
+let test = validate_xml("./tests/annot_species/metab_binding.xml");
 // let test = validate_xml("tests/annot_species/wrong_binding.xml");
 
 // let test = validate_xml("tests/comparts/missing_id.xml");

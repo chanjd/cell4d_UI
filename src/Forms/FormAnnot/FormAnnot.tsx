@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Col, Row, Form, Button, Container, Card, DropdownButton, InputGroup } from 'react-bootstrap'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { schema } from '../../schema';
@@ -21,6 +21,9 @@ import modelContext from '../../modelContext';
 
 // use multiselect dropdown for compartemnts
 export default function FormAnnot(props: any) {
+	const [submitSuccess, setSubmitSuccess] = useState(false);
+	useEffect(() => {}, [submitSuccess])
+
 	let emptyAnnot = {
 		_attributes: {
 			id: "",
@@ -60,7 +63,7 @@ export default function FormAnnot(props: any) {
 			]
 		}
 	}
-	let empty_bind_site = {
+	let empty_site_state = {
 		_attributes: {
 			value: ""
 		}
@@ -75,6 +78,7 @@ export default function FormAnnot(props: any) {
 		}
 		model.changeModelJson("annotSpecies", annot_out);
 		console.log(JSON.stringify(values["cell4d:speciesType"]));
+		setSubmitSuccess(true);
 	}
 
 	// const handleColor = (color: any) => {
@@ -107,7 +111,7 @@ export default function FormAnnot(props: any) {
 											<Card >
 												<Row style={{ paddingTop: 10 }}>
 													<Col xs={3} style={{ paddingLeft: 30 }}>
-														<Form.Label>Molecule name</Form.Label>
+														<Form.Label>Species name</Form.Label>
 														<Form.Control className="form-control" size="sm"
 															name={`cell4d:speciesType.[${index}]._attributes.id`}
 															value={values["cell4d:speciesType"][index]._attributes.id}
@@ -266,7 +270,7 @@ export default function FormAnnot(props: any) {
 																											</div>
 																										)) : null
 																								}
-																									<Button type="button" size="sm" onClick={() => arrayHelpers.push(empty_bind_site)} className="justify-content-flex-start">
+																									<Button type="button" size="sm" onClick={() => arrayHelpers.push(empty_site_state)} className="justify-content-flex-start">
 																										Add state
 																									</Button>
 																									<br />
@@ -304,8 +308,9 @@ export default function FormAnnot(props: any) {
 							/>
 							<br />
 							{/* <pre>{JSON.stringify(values?.["cell4d:speciesType"][0]["cell4d:listOfValidCompartments"]["cell4d:compartment"], null, 2)}</pre> */}
+							<hr />
 
-							<Button type="submit">Save base molecules to model</Button>
+							<Button type="submit" variant="success" onClick={() => setSubmitSuccess(false)}>Save base molecules to model</Button>
 							{/* <pre>{JSON.stringify(values, null, 2)}</pre> */}
 
 						</Container>

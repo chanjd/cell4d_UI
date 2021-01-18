@@ -3,7 +3,7 @@ import { Col, Row, Form, Button, InputGroup } from 'react-bootstrap'
 import * as yup from 'yup';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { schema } from '../../schema';
-import { Formik, getIn, useFormikContext } from 'formik';
+import { Formik, getIn } from 'formik';
 import modelContext from '../../modelContext';
 
 
@@ -74,8 +74,6 @@ export default function FormEnv(props: any) {
 		modelChange.changeModelJson("cell4d:environmentVariables", formObj);
 		setSubmitSuccess(true);
 	}
-
-	let { values } = useFormikContext<envVarFormat>() ?? {};
 
 	return (
 		<div>
@@ -235,6 +233,8 @@ export default function FormEnv(props: any) {
 							</Form.Group>
 
 						</Form.Row>
+						<hr />
+
 						<Button type="submit" onClick={() => setSubmitSuccess(false)}>Save Environmental Variables to model</Button>
 						{submitSuccess ? <><br/><br/><div className="alert-success col-lg justify-content-md-center">Environmental Variables saved to model!</div></> : null}
 

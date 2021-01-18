@@ -6,6 +6,7 @@ import modelContext from '../modelContext';
 import { showFormContext } from '../App';
 import initialState from '../Forms/formInitialState'
 import { validate_xml } from '../xml_validate'
+import { annotSpecies, species } from '../types';
 
 
 interface HeaderProps {
@@ -31,7 +32,6 @@ export default function Header(props: HeaderProps) {
 		fileReader.onload = handleFileRead;
 		fileReader.readAsText(values.file);
 
-
 		// changeShowUpload(true);
 		values.isLoading = false;
 		// changeUploadStatus(true);
@@ -52,19 +52,15 @@ export default function Header(props: HeaderProps) {
 		}
 
 		changeFormDisplay(true);
+
+		//breakdown xml object into 6 form sections
 		initialState["cell4d:environmentVariables"] = validation_result.json["sbml"]["model"]["annotation"]["cell4d:environmentVariables"];
 		initialState["listOfCompartments"] = validation_result.json["sbml"]["model"]["listOfCompartments"];
 		initialState["annotSpecies"] = validation_result.json["sbml"]["model"]["annotation"]["cell4d:listOfAnnotationSpeciesTypes"];
+		initialState["listOfSpecies"] = validation_result.json["sbml"]["model"]["listOfSpecies"];
 
-		// temp workaround to keep units consistent when loading time/space scale
-		// let ts_factor = 1e-6;
-		// let ss_factor = 1e-6;
-		initialState["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"] = initialState["cell4d:environmentVariables"]["cell4d:TIMESCALE"]["_text"];
-		initialState["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"] = initialState["cell4d:environmentVariables"]["cell4d:SPACESCALE"]["_text"];
-
-		//breakdown xml object into 6 form sections
+		// trigger the useEffect, updating the json
 		modelChange.changeModelJson("cell4d:environmentVariables", initialState);
-		modelChange.changeModelJson("listOfCompartments", initialState);
 	}
 
 	useEffect(() => {
@@ -112,7 +108,7 @@ export default function Header(props: HeaderProps) {
 									</Form.Group>
 								</Form.Row>
 								{uploadError ? <Alert variant="danger">File upload error.</Alert> : null}
-								{uploadError ? <Alert variant="danger"><pre style={{textAlign: 'left'}}>{JSON.stringify(uploadErrorMsg, null, 2)}</pre></Alert> : null}
+								{uploadError ? <Alert variant="danger"><pre style={{ textAlign: 'left' }}>{JSON.stringify(uploadErrorMsg, null, 2)}</pre></Alert> : null}
 								<Form.Row>
 									{!showForm ? <p style={{ display: 'flex', justifyContent: 'center' }}>or</p> : null}
 								</Form.Row>

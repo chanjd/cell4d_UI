@@ -209,7 +209,9 @@ export default function FormComparts(props: any) {
 							<br />
 
 							{/* <Button variant="outline-info">Add Compartment</Button> */}
-							<Button type="submit" onClick={() => setSubmitSuccess(false)}>Save Compartments to model</Button>
+							<hr />
+
+							<Button type="submit" variant="success" onClick={() => setSubmitSuccess(false)}>Save Compartments to model</Button>
 							{submitSuccess ? <><br/><br/><div className="alert-success col-lg justify-content-md-center">Compartments saved to model!</div></> : null}
 						</Container>
 					</Form>

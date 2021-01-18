@@ -5,6 +5,7 @@ import './TabComponent.css';
 import FormEnv from '../Forms/FormEnv/FormEnv';
 import FormComparts from '../Forms/FormComparts/FormComparts';
 import FormAnnot from '../Forms/FormAnnot/FormAnnot';
+import FormSpecies from '../Forms/FormSpecies/FormSpecies';
 import modelContext from '../modelContext';
 import initialState from '../Forms/formInitialState'
 
@@ -27,16 +28,26 @@ export default function TabComponent(props: any) {
 					<FormComparts initialValues={initialState.listOfCompartments} />
 				</Tab>
 
-				<Tab eventKey="annotSpecies" title="Base Molecules">
-					<p>Here are the base molecules of the model file.</p>
+				<Tab eventKey="annotSpecies" title="Base Species">
+					<p>Here are the base species of the model file.</p>
 					<FormAnnot initialValues={initialState.annotSpecies} />
+				</Tab>
+
+				<Tab eventKey="species" title="Molecules">
+					<p>Here are the molecular species of the model file.</p>
+					<FormSpecies initialValues={initialState.listOfSpecies} />
+				</Tab>
+
+				<Tab eventKey="reactions" title="Reactions" disabled>
+					<p>Here are the molecular species of the model file.</p>
+					{/* <FormAnnot initialValues={initialState.annotSpecies} /> */}
 				</Tab>
 
 				<Tab eventKey="disabled" title="disabled" disabled>
 				</Tab>
 
 			</Tabs>
-			{/* <pre>{JSON.stringify(modelChange.modelJson, null, 2)}</pre> */}
+			{/* <pre>{JSON.stringify(modelChange.annotSpeciesList, null, 2)}</pre> */}
 		</>
 	)
 

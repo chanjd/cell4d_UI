@@ -1,5 +1,6 @@
 import * as yup from 'yup'; // for everything
 import "./optional"; // custom "optional" function for yup validation
+import { annotSpecies, species } from './types';
 
 
 function define_schemas() {
@@ -180,48 +181,102 @@ function define_schemas() {
 							}).required(possible_annot_species_errors[0]),
 						).optional(),
 					}).optional(),
-					"cell4d:diffusionConstant": yup.object().shape({
-						_attributes: yup.object().shape({
-							value: yup.number().required(possible_annot_species_errors[0])
-								.typeError(possible_annot_species_errors[1])
-								.min(0, possible_annot_species_errors[1])
-						}),
-					}),
-					"cell4d:displayProperties": yup.object().shape({
-						_attributes: yup.object().shape({
-							redValue: yup.number().required(possible_annot_species_errors[0])
-								.typeError(possible_annot_species_errors[1])
-								.min(0, possible_annot_species_errors[1])
-								.max(255, possible_annot_species_errors[1]),
-							greenValue: yup.number().required(possible_annot_species_errors[0])
-								.typeError(possible_annot_species_errors[1])
-								.min(0, possible_annot_species_errors[1])
-								.max(255, possible_annot_species_errors[1]),
-							blueValue: yup.number().required(possible_annot_species_errors[0])
-								.typeError(possible_annot_species_errors[1])
-								.min(0, possible_annot_species_errors[1])
-								.max(255, possible_annot_species_errors[1]),
-						}),
-					}),
 				})
 			)
 		}))
 	};
-	interface annotSpecies {
-		id: string,
-		sites: Array<{
-			id: string,
-			states: Array<string>
-		}>
-	}
-	interface species {
-		id: string,
-		sites: Array<{
-			id: string,
-			state: string
-			binding: boolean
-		}>
-	}
+
+	const speciesSchema: any = (ext_compart_list: Array<string>, ext_annot_species_list: Array<annotSpecies>) => {
+		return (yup.object().shape({
+			"species": yup.array().of(
+				yup.object().shape({
+					_attributes: yup.object().shape({
+						id: yup.string().required("Missing name"),
+					}),
+					annotation: yup.object().shape({
+						"cell4d:listOfValidCompartments": yup.object().shape({
+							"cell4d:compartment": yup.array().of(
+								yup.object().shape({
+									_attributes: yup.object().shape({
+										id: yup.string().required(),
+									}),
+								}).required(),
+							).required().test({
+								name: "valid compartments",
+								message: possible_annot_species_errors[2],
+								exclusive: false,
+								test: function (compart_array: any) {
+									// skip this test if the valid compart array is missing
+									if (!compart_array) {
+										return (true);
+									}
+									if (!ext_compart_list || ext_compart_list.length === 0) {
+										return (false);
+									}
+									// get the compartment id list from nested compartment json
+									let valid_comparts = compart_array.map((compart: { _attributes: { id: string; } }) => { return compart._attributes.id })
+									return (valid_comparts.every((compart: string) => ext_compart_list.includes(compart)));
+								}
+							}),
+						}),
+						"cell4d:listOfSpeciesTypes": yup.object().shape({
+							"cell4d:speciesType": yup.array().of(
+								yup.object().shape({
+									_attributes: yup.object().shape({
+										id: yup.string().required(),
+									}).required(),
+									"cell4d:bindingSite": yup.array().of(
+										yup.object().shape({
+											_attributes: yup.object().shape({
+												id: yup.string().required(),
+												state: yup.string().optional(),
+												binding: yup.string().optional(),
+											}).required().test({
+												name: "filled site",
+												message: "One of state or binding site attributes should be filled",
+												exclusive: false,
+												// only state or binding should be filled, not both
+												test: function (bind_attr: any) {
+													// XOR
+													if ((!bind_attr.state && bind_attr.binding) || (bind_attr.state && !bind_attr.binding)) {
+														return true;
+													}
+													return false;
+												}
+											})
+										}).required()
+									).optional(),
+								})
+							)
+						}),
+						"cell4d:diffusionConstant": yup.object().shape({
+							_attributes: yup.object().shape({
+								value: yup.number().required(possible_annot_species_errors[0])
+									.typeError(possible_annot_species_errors[1])
+									.min(0, possible_annot_species_errors[1])
+							}).required()
+						}).optional(),
+						"cell4d:displayProperties": yup.object().shape({
+							_attributes: yup.object().shape({
+								redValue: yup.number().required(possible_annot_species_errors[0])
+									.typeError(possible_annot_species_errors[1])
+									.min(0, possible_annot_species_errors[1])
+									.max(255, possible_annot_species_errors[1]),
+								greenValue: yup.number().required(possible_annot_species_errors[0])
+									.typeError(possible_annot_species_errors[1])
+									.min(0, possible_annot_species_errors[1])
+									.max(255, possible_annot_species_errors[1]),
+								blueValue: yup.number().required(possible_annot_species_errors[0])
+									.typeError(possible_annot_species_errors[1])
+									.min(0, possible_annot_species_errors[1])
+									.max(255, possible_annot_species_errors[1]),
+							}).required()
+						}).optional(),
+					})
+				})
+			)
+		}))
+	};
 
 	// custom deep compare function of base annotation species
 	// fullMatch requires annotSpecies and species to have matching numbers of sites & site states must all be consistent

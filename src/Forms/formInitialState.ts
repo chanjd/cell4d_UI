@@ -25,8 +25,9 @@ let initialState = {
 			"_text": 0,
 		},
 	},
+
 	"listOfCompartments": {
-		compartment: [
+		"compartment": [
 			{
 				_attributes: {
 					id: "c0",
@@ -49,7 +50,8 @@ let initialState = {
 			}
 		]
 	},
-	annotSpecies: {
+
+	"annotSpecies": {
 		"cell4d:speciesType": [
 			{
 				_attributes: {
@@ -83,7 +85,68 @@ let initialState = {
 			}
 		]
 	},
-	species: "",
+
+	"listOfSpecies": {
+		"species": [
+			{
+				_attributes: {
+					id: "",
+					name: "",
+					compartment: "default"
+				},
+				annotation: {
+					"cell4d:listOfValidCompartments": {
+						"cell4d:compartment": [
+							{
+								_attributes: {
+									id: "",
+									initial: "0",
+									distribution: "random",
+									xPoint: "",
+									yPoint: "",
+									zPoint: "",
+									rate: ""
+								}
+							}
+						]
+					},
+					"cell4d:listOfSpeciesTypes": {
+						"cell4d:speciesType": [
+							{
+								_attributes: {
+									id: ""
+								},
+								"cell4d:bindingSite": [
+									{
+										_attributes: {
+											id: "",
+											state: "",
+											binding: ""
+										}
+									}
+								]
+							}
+						]
+					},
+					// "cell4d:diffusionConstant": {
+					// 	_attributes: {
+					// 		value: "",
+					// 	},
+					// },
+					// "cell4d:displayProperties": {
+					// 	_attributes: {
+					// 		redValue: "",
+					// 		greenValue: "",
+					// 		blueValue: ""
+					// 	},
+					// },
+	
+				},
+			}
+		]
+	},
+
+
 	reactions: "",
 	events: "",
 }
